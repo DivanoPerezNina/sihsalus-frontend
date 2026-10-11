@@ -18,6 +18,7 @@ import {
   updateProcedure,
   useConceptSearch,
   useConceptSearchField,
+  useMutatePatientProcedures,
   useProcedureTypes,
 } from '../../procedures.resource';
 import type { Procedure } from '../../types';
@@ -171,6 +172,7 @@ const parseDateInputValue = (value: string) => {
 };
 
 beforeEach(() => {
+  vi.mocked(useMutatePatientProcedures).mockReturnValue(vi.fn());
   mockUseProcedureTypes.mockReturnValue({ procedureTypes: mockProcedureTypes, isLoading: false, error: undefined });
   mockUseConceptSearch.mockReturnValue({ searchResults: [], isSearching: false, error: undefined });
   mockOpenmrsFetch.mockResolvedValue({ data: { results: [] } } as FetchResponse);
@@ -582,8 +584,9 @@ describe('ProceduresForm', () => {
     await fillRequiredFields(user);
     await user.click(screen.getByRole('button', { name: /save & close/i }));
 
-    await screen.findByText(/error saving procedure/i);
-    expect(screen.getByText(/internal server error/i)).toBeInTheDocument();
+    await screen.findByText(/could not confirm procedure saving/i);
+    expect(screen.queryByText(/internal server error/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/check the procedure before trying again/i)).toBeInTheDocument();
   });
 
   it('clears exact start date and requires estimated date when toggled to unknown', async () => {
@@ -666,10 +669,12 @@ describe('ProceduresForm', () => {
     await waitFor(() =>
       expect(mockUpdateProcedure).toHaveBeenCalledWith(
         'existing-proc-uuid',
-        expect.objectContaining({ patient: mockPatient.id, procedureCoded: 'proc-concept-uuid-1' }),
+        expect.objectContaining({ procedureCoded: 'proc-concept-uuid-1' }),
       ),
     );
     expect(mockSaveProcedure).not.toHaveBeenCalled();
+    expect(mockUpdateProcedure.mock.calls[0][1]).not.toHaveProperty('patient');
+    expect(mockUpdateProcedure.mock.calls[0][1]).not.toHaveProperty('encounter');
   });
 
   it('shows a success snackbar after a successful edit', async () => {
@@ -936,4 +941,61 @@ describe('ProceduresForm', () => {
     expect(screen.getByRole('combobox', { name: /duration unit/i })).toBeInTheDocument();
     expect(screen.getByText(/could not load duration unit options/i)).toBeInTheDocument();
   });
+});
+
+it('blocks editing a procedure belonging to another patient', () => {
+  render(
+    <ProceduresFormWorkspace
+      {...defaultProps}
+      workspaceProps={{
+        formContext: 'editing',
+        procedure: { ...mockExistingProcedure, patient: { uuid: 'other-patient', display: 'Other' } },
+      }}
+    />,
+  );
+  expect(
+    screen.getByText(
+      'This procedure does not match the open patient chart. Close it and reopen it from the correct chart.',
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /save & close/i })).not.toBeInTheDocument();
+  expect(mockUpdateProcedure).not.toHaveBeenCalled();
+});
+
+it('blocks an editing workspace without a procedure rather than creating a new record', () => {
+  render(<ProceduresFormWorkspace {...defaultProps} workspaceProps={{ formContext: 'editing' }} />);
+  expect(screen.queryByRole('button', { name: /save & close/i })).not.toBeInTheDocument();
+  expect(mockSaveProcedure).not.toHaveBeenCalled();
+});
+
+it('closes a confirmed edit with a refresh warning rather than reporting a failed write', async () => {
+  vi.mocked(useMutatePatientProcedures).mockReturnValue(
+    vi.fn().mockRejectedValue(new Error('private refresh failure')),
+  );
+  mockUseConceptSearch.mockReturnValue({ searchResults: searchedProcedure, isSearching: false, error: undefined });
+  mockUpdateProcedure.mockResolvedValue({ status: 200 } as FetchResponse);
+  renderEditForm();
+  await userEvent.click(screen.getByRole('button', { name: /save & close/i }));
+  await waitFor(() =>
+    expect(mockShowSnackbar).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'warning', title: 'Procedure updated' }),
+    ),
+  );
+  expect(mockUpdateProcedure).toHaveBeenCalledTimes(1);
+  expect(defaultProps.closeWorkspace).toHaveBeenCalledWith({ discardUnsavedChanges: true });
+});
+
+it('blocks inconsistent creation context containing an existing procedure', () => {
+  render(
+    <ProceduresFormWorkspace
+      {...defaultProps}
+      workspaceProps={{
+        formContext: 'creating',
+        procedure: { ...mockExistingProcedure, patient: { uuid: 'other-patient', display: 'Other' } },
+      }}
+    />,
+  );
+  expect(screen.queryByRole('button', { name: /save & close/i })).not.toBeInTheDocument();
+  expect(mockSaveProcedure).not.toHaveBeenCalled();
+  expect(mockUpdateProcedure).not.toHaveBeenCalled();
 });

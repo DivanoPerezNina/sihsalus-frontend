@@ -71,7 +71,7 @@ export const saveProcedure = async (payload: RawProcedure) => {
   });
 };
 
-export const updateProcedure = async (procedureUuid: string, payload: RawProcedure) => {
+export const updateProcedure = async (procedureUuid: string, payload: Omit<RawProcedure, 'patient'>) => {
   return openmrsFetch(`${restBaseUrl}/procedure/${procedureUuid}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -100,8 +100,9 @@ export const useProcedures = (patientUuid: string, startIndex = 0, limit = 100) 
   };
 };
 
-export const deleteProcedure = async (procedureId: string) => {
-  return await openmrsFetch(`${restBaseUrl}/procedure/${procedureId}`, {
+export const deleteProcedure = async (procedureId: string, reason: string) => {
+  const params = new URLSearchParams({ reason });
+  return await openmrsFetch(`${restBaseUrl}/procedure/${procedureId}?${params}`, {
     method: 'DELETE',
   });
 };
