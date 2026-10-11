@@ -34,6 +34,10 @@
     "printItemCost": false,
     "printBalanceOnHand": false
   },
+  "@sihsalus/esm-patient-procedures-app": {
+    "bodySiteConceptUuid": "25b4e8e6-0781-5c04-bc76-888402f3f505",
+    "bodySiteConceptSourceType": "Concept set"
+  },
   "@sihsalus/esm-patient-orders-app": {
     "stockAvailability": {
       "enabled": true,
