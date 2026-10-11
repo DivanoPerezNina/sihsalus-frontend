@@ -24,8 +24,13 @@ export const buildConceptSourceUrl = (source: ConceptSource): string | null => {
 export const buildConceptSearchUrl = (query: string, source: ConceptSource): string => {
   const params = new URLSearchParams({ v: 'custom:(uuid,display)' });
   if (query) {
-    params.set('name', query);
-    params.set('searchType', 'fuzzy');
+    if (source.sourceType === 'Concept set') {
+      // REST memberOf searches filter text through q, not name/searchType.
+      params.set('q', query);
+    } else {
+      params.set('name', query);
+      params.set('searchType', 'fuzzy');
+    }
   }
   if (source.uuid && source.sourceType !== 'any') {
     params.set(sourceTypeToRestParam[source.sourceType], source.uuid);
