@@ -155,5 +155,15 @@ domain review; the frontend does not substitute clinical metadata.
 The time control follows changes to its actual timestamp, including clearing or
 rehydrating a record. A partial time remains editable when a parent rerenders an
 equivalent timestamp; an incomplete time does not replace the last valid model
-value. Existing 12-hour/AM-PM parsing and native input pattern validation remain
-in place. No historical timestamp is migrated or inferred by this UI correction.
+value. When a date is present, an empty or incomplete visible time blocks native form
+submission and shows an inline format error. This prevents saving a hidden prior
+hour; it does not coerce the draft or infer a new timestamp. Existing 12-hour /
+AM-PM parsing remains in place. No historical timestamp is migrated or inferred by this UI correction.
+
+Carbon 1.117 `TimePicker` exposes its native input ref but does not declare a
+`required` prop in `TimePickerProps`. The existing 12-hour pattern and supported
+`invalid` / `invalidText` props describe the same field constraint; the input ref
+uses native `setCustomValidity` so an empty draft cannot submit a hidden prior
+hour. This does not bypass component types, coerce a timestamp, or introduce a
+clinical time rule. Revisit this integration if Carbon exposes the equivalent
+native constraint directly through its typed props.

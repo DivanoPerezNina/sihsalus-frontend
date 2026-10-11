@@ -93,6 +93,7 @@
   "statusOptionsLoadFailed": "No se pudieron cargar los estados. Inténtalo nuevamente.",
   "statusRequired": "El estado es obligatorio",
   "time": "Hora",
+  "validProcedureTimeRequired": "Ingrese una hora válida en formato hh:mm",
   "voidReason": "Motivo de anulación (obligatorio)",
   "voidReasonCount": "{{count}} / {{max}} caracteres",
   "voidReasonRequired": "El motivo de anulación es obligatorio",

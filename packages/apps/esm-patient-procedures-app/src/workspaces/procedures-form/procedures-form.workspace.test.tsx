@@ -1002,3 +1002,17 @@ it('blocks inconsistent creation context containing an existing procedure', () =
   expect(mockSaveProcedure).not.toHaveBeenCalled();
   expect(mockUpdateProcedure).not.toHaveBeenCalled();
 });
+
+it('prevents an edit from saving the last valid hour while its visible time is empty', async () => {
+  mockUseConceptSearch.mockReturnValue({ searchResults: searchedProcedure, isSearching: false, error: undefined });
+  renderEditForm();
+  const startGroup = screen.getByRole('group', { name: /start date and time/i });
+  const input = within(startGroup).getByLabelText(/^time$/i);
+  await userEvent.clear(input);
+  await userEvent.click(screen.getByRole('button', { name: /save & close/i }));
+  expect(mockUpdateProcedure).not.toHaveBeenCalled();
+  expect(mockSaveProcedure).not.toHaveBeenCalled();
+  expect(input).toHaveValue('');
+  expect(input).toHaveAttribute('aria-invalid', 'true');
+  expect(within(startGroup).getByText('Enter a valid time in hh:mm format')).toBeInTheDocument();
+});

@@ -93,6 +93,7 @@
   "statusOptionsLoadFailed": "Could not load status options. Please try again.",
   "statusRequired": "Status is required",
   "time": "Time",
+  "validProcedureTimeRequired": "Enter a valid time in hh:mm format",
   "voidReason": "Reason for voiding (required)",
   "voidReasonCount": "{{count}} / {{max}} characters",
   "voidReasonRequired": "A reason for voiding is required",

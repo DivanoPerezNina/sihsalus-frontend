@@ -192,3 +192,19 @@ it('rehydrates the actual saved hour and meridiem when the parent supplies a cha
   expect(screen.getByLabelText(/^time$/i)).toHaveValue('06:42');
   expect(screen.getByLabelText(/am\/pm/i)).toHaveValue('PM');
 });
+
+it('blocks native form submission after clearing the visible time of a valid timestamp', async () => {
+  const onSubmit = vi.fn((event) => event.preventDefault());
+  render(
+    <form onSubmit={onSubmit}>
+      <Harness defaultValue={new Date(2026, 3, 27, 9, 15)} />
+      <button type="submit">Save</button>
+    </form>,
+  );
+  await userEvent.clear(screen.getByLabelText(/^time$/i));
+  expect(screen.getByTestId('hours')).toHaveTextContent('9');
+  expect(screen.getByTestId('minutes')).toHaveTextContent('15');
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(onSubmit).not.toHaveBeenCalled();
+  expect((screen.getByLabelText(/^time$/i) as HTMLInputElement).checkValidity()).toBe(false);
+});
