@@ -485,7 +485,7 @@ test('procedure type remains selected through blur, option refresh and responsiv
       await choose('Procedure type', 'Procedimiento de enfermería');
     }
     // Keep the next interaction immediate: polling the label here can hide
-    // the blur race even though RHF has not committed the selected UUID.
+    // the observed blur race.
     // Native browser blur was sufficient to empty RHF's type value
     // while Carbon kept the visible label; DOM-only selection tests missed it.
     await page.getByRole('searchbox', { name: 'Enter body site', exact: true }).fill(editing ? 'Delt' : 'Deltoides');
