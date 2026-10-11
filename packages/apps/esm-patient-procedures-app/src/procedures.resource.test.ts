@@ -1,6 +1,6 @@
-import { restBaseUrl } from '@openmrs/esm-framework';
-import { describe, expect, it } from 'vitest';
-import { buildConceptSearchUrl, buildConceptSourceUrl } from './procedures.resource';
+import { openmrsFetch, restBaseUrl } from '@openmrs/esm-framework';
+import { describe, expect, it, vi } from 'vitest';
+import { buildConceptSearchUrl, buildConceptSourceUrl, deleteProcedure, updateProcedure } from './procedures.resource';
 
 describe('procedure concept sources', () => {
   it('validates coded questions before requesting their answers', () => {
@@ -57,4 +57,23 @@ describe('procedure concept sources', () => {
   it('does not validate unfiltered concept searches', () => {
     expect(buildConceptSourceUrl({ uuid: '', sourceType: 'any' })).toBeNull();
   });
+});
+
+it('encodes the complete void reason as a query parameter without changing the path or text', async () => {
+  const reason = 'Corrección & revisión? é😀\nMotivo = intacto';
+  vi.mocked(openmrsFetch).mockResolvedValue({ status: 200 } as never);
+  await deleteProcedure('procedure-uuid', reason);
+  const [url, options] = vi.mocked(openmrsFetch).mock.calls[0];
+  expect(new URL(url, 'https://example.test').searchParams.get('reason')).toBe(reason);
+  expect(url).toContain('/procedure/procedure-uuid?');
+  expect(options).toEqual({ method: 'DELETE' });
+});
+
+it('updates only submitted procedure fields, preserving patient and encounter ownership', async () => {
+  vi.mocked(openmrsFetch).mockResolvedValue({ status: 200 } as never);
+  await updateProcedure('procedure-uuid', { notes: 'Updated notes' });
+  expect(openmrsFetch).toHaveBeenCalledWith(
+    `${restBaseUrl}/procedure/procedure-uuid`,
+    expect.objectContaining({ method: 'POST', body: { notes: 'Updated notes' } }),
+  );
 });

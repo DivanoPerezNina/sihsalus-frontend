@@ -12,8 +12,15 @@ import {
   Switch,
   TextArea,
 } from '@carbon/react';
-import { ResponsiveWrapper, showSnackbar, useConfig, useLayoutType } from '@openmrs/esm-framework';
 import {
+  getUserFacingErrorMessage,
+  ResponsiveWrapper,
+  showSnackbar,
+  useConfig,
+  useLayoutType,
+} from '@openmrs/esm-framework';
+import {
+  getCompatibleUserFacingErrorMessage,
   shouldPreventPlainNumberKey,
   shouldPreventPlainNumberPaste,
   validatePlainNumberInput,
@@ -164,7 +171,6 @@ const ProceduresFormComponent: React.FC<ProceduresFormComponentProps> = ({
     const hasDuration = typeof duration === 'number' && !Number.isNaN(duration);
 
     const payload = {
-      patient: patientUuid,
       procedureCoded: getValues('procedureCoded'),
       procedureType: procedureType,
       bodySite: getValues('bodySite') || null,
@@ -181,21 +187,34 @@ const ProceduresFormComponent: React.FC<ProceduresFormComponentProps> = ({
       if (procedure?.uuid) {
         await updateProcedure(procedure.uuid, payload);
       } else {
-        await saveProcedure(payload);
+        await saveProcedure({ ...payload, patient: patientUuid });
       }
+    } catch (error) {
+      setIsSubmittingForm(false);
+      setErrorSaving(error);
+      return;
+    }
+    const title = procedure?.uuid ? t('procedureUpdated', 'Procedure updated') : t('procedureSaved', 'Procedure saved');
+    try {
       await mutate();
       showSnackbar({
         kind: 'success',
-        title: procedure?.uuid ? t('procedureUpdated', 'Procedure updated') : t('procedureSaved', 'Procedure saved'),
+        title,
         subtitle: procedure?.uuid
           ? t('procedureUpdatesNowVisible', 'Changes to the procedure are now visible on the Procedures page')
           : t('procedureNowVisible', 'It is now visible on the Procedures page'),
       });
-      closeWorkspaceAfterSave();
-    } catch (error) {
-      setIsSubmittingForm(false);
-      setErrorSaving(error);
+    } catch {
+      showSnackbar({
+        kind: 'warning',
+        title,
+        subtitle: t(
+          'procedureRefreshFailed',
+          'The procedure was saved, but the list could not refresh. Reload the page; do not repeat the action.',
+        ),
+      });
     }
+    closeWorkspaceAfterSave();
   }, [closeWorkspaceAfterSave, getValues, mutate, patientUuid, procedure?.uuid, t]);
 
   const onError = () => setIsSubmittingForm(false);
@@ -504,8 +523,13 @@ const ProceduresFormComponent: React.FC<ProceduresFormComponentProps> = ({
               role="alert"
               kind="error"
               lowContrast
-              title={t('errorSavingProcedure', 'Error saving procedure')}
-              subtitle={errorSaving?.message}
+              title={t('errorSavingProcedure', 'Could not confirm procedure saving')}
+              subtitle={getCompatibleUserFacingErrorMessage(
+                errorSaving,
+                t('checkProcedureBeforeRetry', 'Check the procedure before trying again.'),
+                { log: false },
+                getUserFacingErrorMessage,
+              )}
             />
           </div>
         ) : null}
