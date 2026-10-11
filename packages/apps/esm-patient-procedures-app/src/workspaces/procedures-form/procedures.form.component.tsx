@@ -242,23 +242,29 @@ const ProceduresFormComponent: React.FC<ProceduresFormComponentProps> = ({
             {isLoadingProcedureTypes ? (
               <InlineLoading className={styles.loader} description={t('loading', 'Loading') + '...'} />
             ) : (
-              <ResponsiveWrapper>
-                <ComboBox
-                  id="procedureType"
-                  titleText=""
-                  aria-label={t('procedureType', 'Procedure type')}
-                  placeholder={t('selectProcedureType', 'Select procedure type')}
-                  items={procedureTypes}
-                  disabled={Boolean(procedureTypesError) || procedureTypes.length === 0}
-                  itemToString={(item: ProcedureType) => item?.name ?? ''}
-                  initialSelectedItem={procedureTypes.find((pt) => pt.uuid === getValues('procedureType')) ?? null}
-                  onChange={({ selectedItem }: { selectedItem: ProcedureType | null }) =>
-                    setValue('procedureType', selectedItem?.uuid ?? '', { shouldValidate: true })
-                  }
-                  invalid={Boolean(errors.procedureType)}
-                  invalidText={errors.procedureType?.message}
-                />
-              </ResponsiveWrapper>
+              <Controller
+                name="procedureType"
+                control={control}
+                render={({ field, fieldState }) => (
+                  <ResponsiveWrapper>
+                    <ComboBox
+                      id="procedureType"
+                      titleText=""
+                      aria-label={t('procedureType', 'Procedure type')}
+                      placeholder={t('selectProcedureType', 'Select procedure type')}
+                      items={procedureTypes}
+                      disabled={Boolean(procedureTypesError) || procedureTypes.length === 0}
+                      itemToString={(item: ProcedureType) => item?.name ?? ''}
+                      selectedItem={procedureTypes.find((pt) => pt.uuid === field.value) ?? null}
+                      onChange={({ selectedItem }: { selectedItem: ProcedureType | null }) =>
+                        field.onChange(selectedItem?.uuid ?? '')
+                      }
+                      invalid={Boolean(fieldState.error)}
+                      invalidText={fieldState.error?.message}
+                    />
+                  </ResponsiveWrapper>
+                )}
+              />
             )}
             {procedureTypesError && (
               <p className={styles.errorMessage}>

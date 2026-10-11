@@ -331,3 +331,212 @@ test('controlled selections settle with asynchronous calculated fields in a prod
   assert.deepEqual(errors, []);
   assert.deepEqual(requests, []);
 });
+
+test('procedure type remains selected through blur, option refresh and responsive remounts', async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'sihsalus-procedures-browser-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const workspace = path.join(root, 'packages/apps/esm-patient-procedures-app');
+  // Keep the workspace, RHF/Zod, Carbon and responsive wrapper native. Only
+  // external services, translations, workspace chrome and the unused date picker
+  // are replaced. Selecting an estimated year avoids exercising that stub.
+  await writeFile(
+    path.join(directory, 'framework.tsx'),
+    `import React from 'react';
+     export { ResponsiveWrapper } from '${root}/packages/libs/esm-styleguide/src/responsive-wrapper/responsive-wrapper.component';
+     export { useLayoutType } from '${root}/packages/libs/esm-react-utils/src/useLayoutType';
+     export const Workspace2 = ({children}) => <>{children}</>;
+     export const useConfig = () => ({});
+     export const showSnackbar = () => {};
+     export const getUserFacingErrorMessage = (_, fallback) => fallback;
+     export const OpenmrsDatePicker = ({id}) => <input id={id} type="date" />;`,
+  );
+  await writeFile(
+    path.join(directory, 'utils.ts'),
+    `export * from '${root}/packages/libs/esm-utils/src/plain-number-input';
+     export * from '${root}/packages/libs/esm-utils/src/user-facing-error-compat';`,
+  );
+  await writeFile(
+    path.join(directory, 'resource.tsx'),
+    `import React, {useEffect, useState} from 'react';
+     const types = [{uuid:'type-nursing',name:'Procedimiento de enfermería'}, {uuid:'type-other',name:'Otro'}];
+     const results = [{uuid:'procedure-qa',display:'Procedimiento QA'},
+       {uuid:'body-deltoid',display:'Deltoides'}, {uuid:'status-complete',display:'Completado'}];
+     export const useProcedureTypes = () => {
+       const [procedureTypes, setTypes] = useState(types);
+       useEffect(() => {
+         const refresh = () => setTypes(current => current.map(item => ({...item})));
+         addEventListener('refresh-options', refresh);
+         return () => removeEventListener('refresh-options', refresh);
+       }, []);
+       return {procedureTypes,isLoading:false};
+     };
+     export const useConceptSearch = () => ({searchResults:results,isSearching:false});
+     export const useConceptSearchField = () => {
+       const [searchTerm,setSearchTerm] = useState('');
+       return {searchTerm,setSearchTerm,searchResults:results.filter(x=>x.display.includes(searchTerm)),
+         isSearching:false,clear:()=>setSearchTerm('')};
+     };
+     export const useMutatePatientProcedures = () => async () => {};
+     export const saveProcedure = async body => {window.writes.push({method:'create',body});};
+     export const updateProcedure = async (uuid,body) => {window.writes.push({method:'edit',uuid,body});};`,
+  );
+  await writeFile(
+    path.join(directory, 'i18n.js'),
+    `export const useTranslation = () => ({t:(_,fallback)=>fallback});
+     export const I18nextProvider = ({children}) => children;`,
+  );
+  await writeFile(
+    path.join(directory, 'entry.tsx'),
+    `import React from 'react';
+     import {createRoot} from 'react-dom/client';
+     import Workspace from '${workspace}/src/workspaces/procedures-form/procedures-form.workspace';
+     window.writes=[];
+     const editing = new URLSearchParams(location.search).has('edit');
+     const procedure = editing ? {uuid:'procedure-existing',patient:{uuid:'patient-qa'},
+       procedureCoded:{uuid:'procedure-qa',display:'Procedimiento QA'},
+       procedureType:{uuid:'type-nursing',name:'Procedimiento de enfermería'},
+       bodySite:{uuid:'body-deltoid',display:'Deltoides'}, estimatedStartDate:'2023',
+       status:{uuid:'status-complete',display:'Completado'}} : undefined;
+     createRoot(document.getElementById('root')).render(<Workspace closeWorkspace={()=>{}}
+       groupProps={{patientUuid:'patient-qa'}} workspaceProps={{formContext:editing?'editing':'creating',procedure}}/>);`,
+  );
+  const previous = process.cwd();
+  let config;
+  try {
+    process.chdir(workspace);
+    config = require(path.join(workspace, 'rspack.config.js'))({}, { mode: 'production' });
+  } finally {
+    process.chdir(previous);
+  }
+  const compiler = rspack({
+    mode: 'production',
+    context: workspace,
+    entry: path.join(directory, 'entry.tsx'),
+    output: { path: directory, filename: 'fixture.js', publicPath: '/' },
+    module: config.module,
+    resolve: {
+      ...config.resolve,
+      modules: [path.join(root, 'node_modules')],
+      alias: {
+        ...config.resolve.alias,
+        '@openmrs/esm-framework$': path.join(directory, 'framework.tsx'),
+        '@openmrs/esm-react-utils$': path.join(root, 'packages/libs/esm-react-utils/src/useLayoutType.ts'),
+        '@openmrs/esm-utils$': path.join(directory, 'utils.ts'),
+        'react-i18next$': path.join(directory, 'i18n.js'),
+      },
+    },
+    optimization: { ...config.optimization, splitChunks: false, runtimeChunk: false },
+    plugins: [new rspack.NormalModuleReplacementPlugin(/procedures\.resource$/, path.join(directory, 'resource.tsx'))],
+  });
+  try {
+    const stats = await new Promise((resolve, reject) => {
+      compiler.run((error, result) => (error ? reject(error) : resolve(result)));
+    });
+    assert.equal(stats.hasErrors(), false, stats.toString({ all: false, errors: true }));
+  } finally {
+    await new Promise((resolve, reject) => compiler.close((error) => (error ? reject(error) : resolve())));
+  }
+  const server = createServer(async (request, response) => {
+    const pathname = new URL(request.url, 'http://localhost').pathname;
+    if (pathname === '/') {
+      response.setHeader('Content-Type', 'text/html; charset=utf-8');
+      response.end('<body class="omrs-breakpoint-gt-tablet"><div id="root"></div><script src="/fixture.js"></script>');
+      return;
+    }
+    try {
+      assert.equal(path.basename(pathname), pathname.slice(1));
+      response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+      response.end(await readFile(path.join(directory, path.basename(pathname))));
+    } catch {
+      response.writeHead(404).end();
+    }
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = [];
+  const requests = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  await page.route('**/*', (route) => {
+    if (new URL(route.request().url()).origin !== origin || route.request().method() !== 'GET') {
+      requests.push(route.request().url());
+      return route.abort();
+    }
+    return route.continue();
+  });
+  const choose = async (name, option) => {
+    await page.getByRole('combobox', { name, exact: true }).click();
+    await page.getByRole('option', { name: option, exact: true }).click();
+  };
+  for (const [editing, clearType] of [
+    [false, false],
+    [true, false],
+    [false, true],
+    [true, true],
+  ]) {
+    await page.goto(origin + (editing ? '/?edit' : '/'));
+    const type = page.getByRole('combobox', { name: 'Procedure type', exact: true });
+    if (!editing) {
+      await page.getByRole('searchbox', { name: 'Enter procedure', exact: true }).fill('Procedimiento');
+      await page.getByRole('option', { name: 'Procedimiento QA', exact: true }).click();
+      await choose('Procedure type', 'Procedimiento de enfermería');
+    }
+    // Keep the next interaction immediate: polling the label here can hide
+    // the blur race even though RHF has not committed the selected UUID.
+    // Native browser blur was sufficient to empty RHF's type value
+    // while Carbon kept the visible label; DOM-only selection tests missed it.
+    await page.getByRole('searchbox', { name: 'Enter body site', exact: true }).fill(editing ? 'Delt' : 'Deltoides');
+    await page.getByRole('option', { name: 'Deltoides', exact: true }).click();
+    await expect(page.getByText('Procedure type is required', { exact: true })).toHaveCount(0);
+    if (!editing) {
+      await page.getByRole('tab', { name: 'No', exact: true }).click();
+      await page.locator('#estimatedYear').fill('2023');
+      await page.getByRole('option', { name: '2023', exact: true }).click();
+      await choose('Status', 'Completado');
+    }
+    if (editing || clearType) {
+      await page.evaluate(() => dispatchEvent(new Event('refresh-options')));
+    }
+    for (const width of [420, 768, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate((width) => {
+        document.body.className =
+          width >= 1024 ? 'omrs-breakpoint-gt-tablet' : width < 600 ? 'omrs-breakpoint-lt-tablet' : '';
+        dispatchEvent(new Event('resize'));
+      }, width);
+      await expect(type).toHaveValue('Procedimiento de enfermería');
+    }
+    if (clearType) {
+      const group = page.getByRole('group', { name: /^Procedure type/ });
+      await group.getByRole('button', { name: /Clear/i }).click();
+      await page.getByRole('button', { name: 'Save & close', exact: true }).click();
+      await expect(page.getByText('Procedure type is required', { exact: true })).toBeVisible();
+      assert.equal(await page.evaluate(() => window.writes.length), 0, 'cleared type must block a write');
+      await choose('Procedure type', 'Otro');
+    }
+    await page.getByRole('button', { name: 'Save & close', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.writes.length)).toBe(1);
+    assert.deepEqual(await page.evaluate(() => window.writes[0]), {
+      method: editing ? 'edit' : 'create',
+      ...(editing ? { uuid: 'procedure-existing' } : {}),
+      body: {
+        procedureCoded: 'procedure-qa',
+        procedureType: clearType ? 'type-other' : 'type-nursing',
+        bodySite: 'body-deltoid',
+        startDateTime: null,
+        endDateTime: null,
+        status: 'status-complete',
+        notes: '',
+        estimatedStartDate: '2023',
+        duration: null,
+        durationUnit: null,
+        ...(editing ? {} : { patient: 'patient-qa' }),
+      },
+    });
+  }
+  assert.deepEqual(errors, []);
+  assert.deepEqual(requests, []);
+});
