@@ -386,6 +386,28 @@ describe('ProceduresForm', () => {
     );
   });
 
+  it('requires a new selection after clearing the procedure type and submits the replacement UUID', async () => {
+    const user = userEvent.setup();
+    mockUseConceptSearch.mockReturnValue({ searchResults: searchedProcedure, isSearching: false, error: undefined });
+    mockSaveProcedure.mockResolvedValue({ status: 201 } as unknown as FetchResponse);
+    renderProceduresForm();
+    await fillRequiredFields(user);
+
+    const group = screen.getByRole('group', { name: /procedure type/i });
+    await user.click(within(group).getByRole('button', { name: /clear/i }));
+    await user.click(screen.getByRole('button', { name: /save & close/i }));
+    expect(await screen.findByText('Procedure type is required')).toBeVisible();
+    expect(mockSaveProcedure).not.toHaveBeenCalled();
+
+    await user.click(within(group).getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: 'Endoscopy' }));
+    await user.click(screen.getByRole('button', { name: /save & close/i }));
+    await waitFor(() =>
+      expect(mockSaveProcedure).toHaveBeenCalledWith(expect.objectContaining({ procedureType: 'pt-uuid-2' })),
+    );
+    expect(mockSaveProcedure).toHaveBeenCalledTimes(1);
+  });
+
   it('closes the workspace after a successful save', async () => {
     const user = userEvent.setup();
 
@@ -654,7 +676,7 @@ describe('ProceduresForm', () => {
     expect(screen.getAllByDisplayValue('Appendectomy').length).toBeGreaterThan(0);
     // Notes textarea is pre-populated
     expect(screen.getByDisplayValue('Test clinical notes')).toBeInTheDocument();
-    // Procedure type ComboBox is pre-selected via initialSelectedItem (driven by defaultValues)
+    // Procedure type ComboBox is controlled by the stored form value.
     const procedureTypeGroup = screen.getByRole('group', { name: /procedure type/i });
     expect(within(procedureTypeGroup).getByRole('combobox')).toHaveValue('Surgery');
   });

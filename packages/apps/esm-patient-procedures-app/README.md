@@ -152,6 +152,13 @@ result integration. Those require a separately authorized synthetic backend
 acceptance test. Catalogue adequacy and the shared “number of times” unit require
 domain review; the frontend does not substitute clinical metadata.
 
+The procedure type selector is controlled by the form's UUID, including when
+options refresh or the responsive wrapper remounts the control. A production
+browser regression in `yarn test:form-builder-browser` covers selection followed
+by blur, creating and editing payloads, and clearing then replacing a required
+type. The visible label and submitted UUID must agree; typing a label alone is
+not a metadata selection. This local fixture makes no backend writes.
+
 The time control follows changes to its actual timestamp, including clearing or
 rehydrating a record. A partial time remains editable when a parent rerenders an
 equivalent timestamp; an incomplete time does not replace the last valid model
