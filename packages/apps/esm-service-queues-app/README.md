@@ -92,6 +92,41 @@ Excepción actual: la extensión `visit-form-queue-fields` declara únicamente p
 - Las acciones de cambiar estado/prioridad deben fallar de forma visible si no hay conceptos configurados.
 - Los nombres de menu deben usar lenguaje final para usuarios clinicos, no nombres internos del paquete.
 
+### Fecha de ingreso a la cola
+
+La tabla general y la vista visual permiten elegir un día, usar `Hoy` o limpiar
+la fecha. Inicialmente muestran todas las fechas, incluidas entradas pendientes
+de días anteriores. La selección se conserva en `sessionStorage` y se comparte
+entre ambas vistas, junto a UPSS, servicio y estado. No se muestra en la tabla
+especializada de Emergencia ni en las pantallas de rooms o de una cola concreta.
+
+El filtro consulta `startedOnOrAfter` y `startedOnOrBefore` en el recurso nativo
+`queue-entry`: desde las 00:00 locales hasta el último milisegundo del día,
+serializados con zona horaria. Cada página pertenece a esa consulta; no se
+filtran fechas en el cliente. `startedAt` es el inicio vigente de la entrada de
+cola, que el backend puede actualizar durante una transición; no es la fecha
+de creación de la persona ni de la consulta. Se requiere Queue >=3.1.0-sihsalus.1 (incluye 3.1.0 estable y posteriores); el
+contrato se verificó en `3.1.0-sihsalus.1`, fuente `fb6de2acbf31b4dd50e518f74badf28163d6e67d`.
+
+El contador de espera y el promedio nativo de cola reciben el mismo día. UPSS
+filtra la lista y el conteo mediante la regla operativa del triaje compartido; el
+promedio se consulta por servicio (o todas las colas) y fecha, en todas las UPSS,
+como indica su etiqueta y explicación. No se envía `queue.location` como si fuera
+la UPSS operativa de triaje. El promedio sigue calculándose en el servidor sobre
+entradas finalizadas; no estima tiempos clínicos ni la espera todavía abierta. El contador de consultas ingresadas conserva su
+alcance explícito de hoy. El filtro no modifica el alcance de `Limpiar todas las
+entradas`, sus permisos ni su confirmación. Las mutaciones y transiciones de
+cola mantienen sus contratos.
+
+La aceptación en DEV/QLTY queda pendiente: usar entradas sintéticas de días
+adyacentes y cercanas a medianoche, comprobar tabla/vista visual/indicadores,
+mantener UPSS/servicio/estado, limpiar la fecha, simular vacío/error y retirar los
+datos propios. Las pruebas locales no acreditan persistencia ni permisos remotos.
+
+Capturas del control con componentes y CSS reales en un fixture local aislado,
+metadatos sintéticos y sin API clínica: [móvil](docs/images/queue-entry-date-mobile.png)
+y [escritorio](docs/images/queue-entry-date-desktop.png). No representan DEV/QLTY.
+
 ### Descripción de ambientes
 
 El acceso `Agregar nueva sala de servicio` desde las métricas de Colas abre el
