@@ -534,6 +534,7 @@ describe('ProceduresForm', () => {
     const startGroup = screen.getByRole('group', { name: /start date and time/i });
     await user.click(within(startGroup).getByLabelText(/^date$/i));
     await user.paste('2026-04-27');
+    await user.clear(within(startGroup).getByLabelText(/^time$/i));
     await user.type(within(startGroup).getByLabelText(/^time$/i), '02:30');
     await user.selectOptions(within(startGroup).getByLabelText(/am\/pm/i), 'PM');
 
@@ -559,6 +560,7 @@ describe('ProceduresForm', () => {
     await fillRequiredFields(user);
 
     const startGroup = screen.getByRole('group', { name: /start date and time/i });
+    await user.clear(within(startGroup).getByLabelText(/^time$/i));
     await user.type(within(startGroup).getByLabelText(/^time$/i), '09:15');
 
     await user.click(screen.getByRole('button', { name: /save & close/i }));
@@ -875,6 +877,7 @@ describe('ProceduresForm', () => {
     const endGroup = screen.getByRole('group', { name: /end date and time/i });
     await user.click(within(endGroup).getByLabelText(/^date$/i));
     await user.paste('2026-04-28');
+    await user.clear(within(endGroup).getByLabelText(/^time$/i));
     await user.type(within(endGroup).getByLabelText(/^time$/i), '03:00');
     await user.selectOptions(within(endGroup).getByLabelText(/am\/pm/i), 'PM');
 

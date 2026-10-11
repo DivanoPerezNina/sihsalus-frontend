@@ -1,6 +1,6 @@
 import { SelectItem, TimePicker, TimePickerSelect } from '@carbon/react';
 import { OpenmrsDatePicker, ResponsiveWrapper } from '@openmrs/esm-framework';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from './date-time-field.scss';
 
@@ -45,6 +45,12 @@ export const DateTimeField = ({
   const { t } = useTranslation();
   const dateValue = value ?? null;
   const meridiem = getMeridiem(dateValue);
+  const timestamp = dateValue?.getTime();
+  const [timeText, setTimeText] = useState(() => formatTime(dateValue));
+
+  useEffect(() => {
+    setTimeText(formatTime(timestamp == null ? null : new Date(timestamp)));
+  }, [timestamp]);
 
   const handleDateChange = (next: Date | null | undefined) => {
     if (!next) {
@@ -62,6 +68,7 @@ export const DateTimeField = ({
 
   const handleTimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const raw = event.target.value;
+    setTimeText(raw);
     const match = TIME_PATTERN.exec(raw);
     if (!match) return;
     const base = dateValue ?? new Date();
@@ -100,7 +107,7 @@ export const DateTimeField = ({
         placeholder="hh:mm"
         pattern="(1[0-2]|0?[1-9]):[0-5][0-9]"
         maxLength={5}
-        defaultValue={formatTime(dateValue)}
+        value={timeText}
         onChange={handleTimeChange}
         disabled={!dateValue}
       >

@@ -151,3 +151,9 @@ They do not certify a clinical CRUD round trip, deployed permissions, or order /
 result integration. Those require a separately authorized synthetic backend
 acceptance test. Catalogue adequacy and the shared “number of times” unit require
 domain review; the frontend does not substitute clinical metadata.
+
+The time control follows changes to its actual timestamp, including clearing or
+rehydrating a record. A partial time remains editable when a parent rerenders an
+equivalent timestamp; an incomplete time does not replace the last valid model
+value. Existing 12-hour/AM-PM parsing and native input pattern validation remain
+in place. No historical timestamp is migrated or inferred by this UI correction.
