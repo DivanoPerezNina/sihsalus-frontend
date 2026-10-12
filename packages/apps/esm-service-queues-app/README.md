@@ -73,6 +73,11 @@ Excepción actual: la extensión `visit-form-queue-fields` declara únicamente p
 
 ## Contratos de UI
 
+- El promedio de espera se presenta en minutos, con un máximo de un decimal y
+  el separador del idioma de la interfaz. El cero válido se conserva; los valores
+  ausentes o no válidos se muestran como `--`. El formato no altera el cálculo ni
+  la precisión del valor devuelto por el backend.
+
 - Las lecturas que verifican una transición, cierre o edición de una entrada
   exigen red con `cache: no-store`, incluida cada página de reconciliación. El
   worker de perfil offline instalado respeta esta opción y no sustituye un fallo
