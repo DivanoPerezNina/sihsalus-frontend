@@ -131,6 +131,39 @@ test('medication catalog extraction uses the catalogs loaded by the app and pres
   }
 });
 
+test('core translation extraction keeps the custom object lexer and existing translations working', () => {
+  const fixture = mkdtempSync(path.join(os.tmpdir(), 'sihsalus-core-i18n-'));
+  try {
+    mkdirSync(path.join(fixture, 'translations'));
+    writeFileSync(
+      path.join(fixture, 'translations', 'en.json'),
+      JSON.stringify({ connectionOffline: 'Previously reviewed offline message' }),
+    );
+    writeFileSync(
+      path.join(fixture, 'translations.ts'),
+      readFileSync(path.join(repositoryRoot, 'packages/libs/esm-translations/src/translations.ts')),
+    );
+    execFileSync(
+      process.execPath,
+      [
+        path.join(repositoryRoot, 'node_modules/i18next-parser/bin/cli.js'),
+        'translations.ts',
+        '--config',
+        path.join(repositoryRoot, 'packages/libs/esm-translations/i18next-parser.config.mjs'),
+      ],
+      { cwd: fixture, stdio: 'pipe', timeout: 30000 },
+    );
+
+    const extracted = JSON.parse(readFileSync(path.join(fixture, 'translations', 'en.json'), 'utf8'));
+    assert.equal(extracted.connectionOffline, 'Previously reviewed offline message');
+    assert.equal(extracted.address1, 'Address line 1');
+    assert.equal(extracted.closeAllOpenedWorkspaces, 'Discard changes in {{count}} workspaces');
+    assert.deepEqual(readdirSync(path.join(fixture, 'translations')), ['en.json']);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
 const pluralCases = [
   {
     app: 'esm-patient-registration-app',
