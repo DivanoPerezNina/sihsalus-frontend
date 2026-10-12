@@ -103,6 +103,23 @@ Retirar los parches cuando existan versiones corregidas compatibles y las
 pruebas confirmen su comportamiento. Mantener las regresiones de profundidad,
 revalidación de caché y rechazo de hallazgos no revisados al actualizar.
 
+## Extracción de traducciones
+
+La resolución `i18next-parser/broccoli-plugin` usa la versión publicada 6.0.0
+solo para ese consumidor. Retira la compatibilidad con el antiguo builder
+Broccoli basado en `read()` y su cadena de directorios temporales. El repositorio
+usa la CLI ESM de `i18next-parser` y su `BaseLexer` personalizado, no ese builder.
+Node 24 admite la dependencia ESM; la extracción debe conservar los catálogos
+revisados y las variables de interpolación.
+
+`i18next-parser` está archivado y todavía declara `broccoli-plugin` 4. La
+resolución evita mantener un parche de código local o cambiar los catálogos
+durante esta actualización. Los mantenedores del frontend deben retirarla al
+migrar a `i18next-cli`, el reemplazo recomendado por upstream, junto con la
+configuración y el lexer personalizado. Las pruebas de extracción cubren la
+CLI de aplicaciones y el lexer del framework; la prueba de dependencias impide
+reintroducir la cadena retirada.
+
 ## Cómo validar cambios a estos contratos
 
 `yarn validate:workspaces` también comprueba que los módulos que importan

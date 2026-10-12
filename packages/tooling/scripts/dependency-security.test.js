@@ -69,6 +69,13 @@ test('known vulnerable transitive dependencies stay above their patched versions
   }
 });
 
+test('translation tooling does not reinstall the obsolete temporary-directory dependency chain', () => {
+  for (const name of ['quick-temp', 'underscore.string', 'sprintf-js']) {
+    assert.deepEqual(getLockedVersions(name), [], `${name} must remain absent from yarn.lock`);
+    assert.throws(() => require.resolve(name), { code: 'MODULE_NOT_FOUND' });
+  }
+});
+
 test('brace-expansion stays patched and compatible with every minimatch API generation', async () => {
   const braceExpansionResolutions = Object.entries(packageJson.resolutions).filter(([descriptor]) =>
     descriptor.startsWith('brace-expansion@'),
