@@ -468,6 +468,174 @@ window.visitStyles = styles;`,
   }
 });
 
+test('clinical panels keep milestone details and native time controls readable beside an open form', async (t) => {
+  const fixture = await mkdtemp(path.join(tmpdir(), 'clinical-panel-layout-'));
+  t.after(() => rm(fixture, { recursive: true, force: true }));
+  const workspace = path.join(repositoryRoot, 'packages/apps/esm-crecimiento-desarrollo-app');
+  const config = loadConfig(workspace, 'rspack.config.js');
+  const outputPath = path.join(fixture, 'dist');
+  const owners = {
+    milestone:
+      'apps/esm-crecimiento-desarrollo-app/src/well-child-care/components/test-peruano/tped-reference-widget.scss',
+    dashboard: 'libs/esm-patient-common-lib/src/tabbed-dashboard/tabbed-dashboard.scss',
+    date: 'libs/esm-form-engine-lib/src/components/inputs/date/date.scss',
+  };
+  await writeFile(
+    path.join(fixture, 'entry.js'),
+    Object.entries(owners)
+      .map(([name, file]) => `import ${name} from ${JSON.stringify(path.join(repositoryRoot, 'packages', file))};`)
+      .join('\n') + '\nwindow.clinicalPanelStyles = { milestone, dashboard, date };',
+  );
+  await compile(
+    {
+      context: workspace,
+      mode: config.mode,
+      entry: path.join(fixture, 'entry.js'),
+      output: {
+        ...config.output,
+        path: outputPath,
+        filename: 'styles.js',
+        publicPath: '',
+      },
+      module: config.module,
+      resolve: config.resolve,
+      optimization: config.optimization,
+      plugins: config.plugins.filter((plugin) => plugin instanceof rspack.CssExtractRspackPlugin),
+      devtool: false,
+      performance: false,
+    },
+    rspack,
+  );
+  const context = await browser.newContext({ offline: true, locale: 'es-PE' });
+  t.after(() => context.close());
+  const page = await context.newPage();
+  await page.setContent('<main id="dashboard"></main><form id="form"></form>');
+  await page.addStyleTag({
+    path: require.resolve('@carbon/styles/css/styles.css'),
+  });
+  for (const asset of (await readdir(outputPath)).filter((file) => file.endsWith('.css'))) {
+    await page.addStyleTag({ path: path.join(outputPath, asset) });
+  }
+  await page.addScriptTag({ path: path.join(outputPath, 'styles.js') });
+  const { milestone, dashboard, date } = await page.evaluate(() => window.clinicalPanelStyles);
+  const h = require('react').createElement;
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const { TimePicker } = require('@carbon/react');
+  await page.locator('#dashboard').evaluate(
+    (node, html) => {
+      node.innerHTML = html;
+    },
+    `<header class="${dashboard.desktopHeading}"><h4>Crecimiento y desarrollo</h4>` +
+      `<p class="${dashboard.description}">Revise la información del niño y registre su control.</p></header>` +
+      `<section class="${milestone.widget}"><header class="${milestone.widgetHeader}">` +
+      '<div><h3>Test Peruano de Evaluación del Desarrollo</h3></div>' +
+      `<div class="${milestone.ageSummary}"><span>Edad cronológica</span><strong>18 meses</strong></div></header>` +
+      `<div class="${milestone.toolbar}"><div class="cds--select"><label>Columna enfocada<select><option>18 meses</option></select></label></div></div>` +
+      `<section class="${milestone.detailPanel}"><h4>Sentado en el suelo, se para solo</h4>` +
+      `<dl id="details" class="${milestone.detailList}">` +
+      [
+        ['Línea del desarrollo', 'Control de cabeza y tronco'],
+        ['Edad del hito', '18 meses'],
+        ['Evidencia', 'Observado'],
+        ['Fuente', 'NTS 087, Anexo 9, página PDF 48'],
+      ]
+        .map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`)
+        .join('') +
+      '</dl></section></section>',
+  );
+  await page.locator('#form').evaluate(
+    (node, html) => {
+      node.innerHTML = html;
+    },
+    renderToStaticMarkup(
+      h(
+        'div',
+        { className: date.datetime },
+        h(
+          'div',
+          { className: date.datePickerSpacing },
+          h('label', { htmlFor: 'session-date' }, 'Fecha y hora de la sesión'),
+          h('input', {
+            id: 'session-date',
+            type: 'date',
+            defaultValue: '2026-10-11',
+          }),
+        ),
+        h(
+          'div',
+          null,
+          h(TimePicker, {
+            id: 'session-time',
+            className: date.timeInput,
+            type: 'time',
+            labelText: 'Hora',
+            defaultValue: '15:04',
+            invalid: true,
+            invalidText: 'Revise la hora de la sesión.',
+          }),
+        ),
+      ),
+    ),
+  );
+  await page.addStyleTag({
+    content:
+      'body{margin:0}#dashboard,#form{margin:16px}#form label{display:block}#session-date{width:100%;height:40px}',
+  });
+  for (const [viewport, panelWidth] of [
+    [1440, 200],
+    [1440, 320],
+    [1440, 768],
+    [420, 388],
+  ]) {
+    await page.setViewportSize({ width: viewport, height: 1000 });
+    await page.locator('#dashboard').evaluate((node, width) => {
+      node.style.width = `${width}px`;
+    }, panelWidth);
+    await page.locator('#form').evaluate((node, width) => {
+      node.style.width = `${width}px`;
+    }, panelWidth);
+    const rows = await page.locator('#details > div').evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        return {
+          x: rect.x,
+          y: rect.y,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          overflow: node.scrollWidth > node.clientWidth,
+        };
+      }),
+    );
+    for (const [index, row] of rows.entries()) {
+      assert.ok(row.width >= 150 && !row.overflow, `detail ${index} readable at panel width ${panelWidth}`);
+      for (const other of rows.slice(index + 1)) {
+        assert.ok(
+          row.right <= other.x || other.right <= row.x || row.bottom <= other.y || other.bottom <= row.y,
+          'milestone labels and values do not overlap',
+        );
+      }
+    }
+    for (const id of ['dashboard', 'form']) {
+      assert.ok(
+        await page.locator(`#${id}`).evaluate((node) => node.scrollWidth <= node.clientWidth),
+        `${id} contains its content`,
+      );
+    }
+    await expect(page.locator('#dashboard h4').first()).toHaveCSS('text-transform', 'none');
+    await expect(page.locator('#dashboard header p')).toHaveCSS('text-transform', 'none');
+    const input = await page.locator('#session-time').boundingBox();
+    assert.ok(input.width >= 160, 'native time input has room for hours, minutes and locale-specific period');
+    await expect(page.locator('#session-time')).toHaveValue('15:04');
+    await expect(page.getByText('Revise la hora de la sesión.')).toBeVisible();
+    if (panelWidth <= 320) {
+      const calendar = await page.locator('#session-date').boundingBox();
+      assert.ok(input.y >= calendar.y + calendar.height, 'narrow forms stack date and time');
+    }
+
+  }
+});
+
 test('chart dashboards preserve results spacing and contain wide tables at mobile widths', async (t) => {
   const fixture = await mkdtemp(path.join(tmpdir(), 'results-dashboard-spacing-'));
   t.after(() => rm(fixture, { recursive: true, force: true }));

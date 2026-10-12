@@ -38,7 +38,7 @@
 .desktopHeading,
 .tabletHeading {
   text-align: left;
-  text-transform: capitalize;
+  text-transform: none;
 
   h4 {
     @include type.type-style("heading-compact-02");

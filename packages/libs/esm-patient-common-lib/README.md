@@ -209,6 +209,11 @@ retain legacy date behavior. This client-only field is not sent to OpenMRS.
 
 ## Integrated clinical dashboards
 
+Dashboard headings and descriptions preserve the casing supplied by their
+translations. The shared header does not capitalize every word of clinical
+instructions. The local browser regression checks this alongside narrow-panel
+layouts used while a form is open.
+
 `TabbedDashboard` accepts stable tab IDs, controlled selection, header actions
 and React content in place of an extension slot. `mountActiveTabOnly` is opt-in;
 existing consumers keep their extension slots mounted. Native Carbon keyboard

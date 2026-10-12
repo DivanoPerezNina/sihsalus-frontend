@@ -53,6 +53,16 @@ render. Manual section toggles retain entered values; subsequent expand/collapse
 all actions still override the initial state. This fixes the local fork's prior
 behavior of always opening all sections, including optional outpatient history.
 
+### Date and time layout
+
+Date and time fields wrap to the available form width. Native time inputs retain
+enough room for the browser's locale-specific period and picker, including
+validation feedback. These scoped styles apply to all consumers of `DateField`;
+they do not change date values, timezone handling, schema validation or submission.
+The local `styles.browser.spec.js` regression covers narrow panels within a wide
+desktop viewport as well as mobile width; deployed-form acceptance remains a
+separate QLTY check.
+
 ### Numeric precision
 
 A number field rejects decimals when its schema sets `disallowDecimals` or its
