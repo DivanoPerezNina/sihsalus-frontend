@@ -2,13 +2,14 @@ import { InlineNotification } from '@carbon/react';
 import { useConfig } from '@openmrs/esm-framework';
 import { useTranslation } from 'react-i18next';
 import { type ConfigObject } from '../../config-schema';
+import { formatAverageWaitTime } from '../../helpers/format-average-wait-time';
 import { getQueueEntryDateCriteria } from '../../store/queue-entry-date';
 import { useServiceQueuesStore } from '../../store/store';
 import { useAverageWaitTime } from '../metrics.resource';
 import { MetricsCard, MetricsCardBody, MetricsCardHeader, MetricsCardItem } from './metrics-card.component';
 
 export default function AverageWaitTimeExtension() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { selectedServiceUuid, selectedQueueEntryDate } = useServiceQueuesStore();
   const {
     concepts: { defaultStatusConceptUuid },
@@ -30,7 +31,7 @@ export default function AverageWaitTimeExtension() {
       <MetricsCardBody>
         <MetricsCardItem
           label={t('minutes', 'Minutes')}
-          value={!isLoading && !error && waitTime ? (waitTime.averageWaitTime ?? '--') : '--'}
+          value={!isLoading && !error ? formatAverageWaitTime(waitTime?.averageWaitTime, i18n.language) : '--'}
         />
       </MetricsCardBody>
       {error && (

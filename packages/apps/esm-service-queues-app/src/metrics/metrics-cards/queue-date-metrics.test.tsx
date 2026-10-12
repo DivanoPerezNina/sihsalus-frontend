@@ -80,3 +80,19 @@ it.each(['loading', 'error'])('does not report a confirmed zero while %s', (stat
   expect(screen.getAllByText('--')).toHaveLength(2);
   if (state === 'error') expect(screen.getAllByText('Queue metrics could not be loaded')).toHaveLength(2);
 });
+
+it('rounds fractional average minutes in the all-queues card', () => {
+  vi.mocked(useServiceQueuesStore).mockReturnValue({
+    ...useServiceQueuesStore(),
+    selectedServiceUuid: null,
+  });
+  vi.mocked(useAverageWaitTime).mockReturnValue({
+    waitTime: { averageWaitTime: 12.3456789 },
+    isLoading: false,
+    error: undefined,
+  } as never);
+  render(<AverageWaitTimeExtension />);
+  expect(screen.getByText('Average queue wait · all UPSS')).toBeInTheDocument();
+  expect(screen.getByText('12.3')).toBeInTheDocument();
+  expect(screen.queryByText('12.3456789')).not.toBeInTheDocument();
+});
