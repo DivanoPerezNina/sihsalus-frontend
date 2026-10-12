@@ -99,6 +99,14 @@ El componente `tped-reference-widget` muestra la matriz historica y el detalle d
 la pestana Desarrollo. Es solo de consulta: no persiste observaciones, puntajes ni
 clasificaciones.
 
+El detalle distribuye sus campos según el ancho disponible del panel, también
+cuando un formulario lateral reduce la historia en escritorio. La cabecera y el
+selector de edad se apilan en paneles estrechos. Se conservan la evidencia, la
+fuente y los avisos de referencia histórica; el estado técnico del mapeo de
+conceptos no se muestra como información clínica. La regresión visual local
+está en `styles.browser.spec.js`; la aceptación del entorno desplegado se
+comprueba aparte en QLTY.
+
 ## TODO QA/QLTY
 
 ### Prueba de persistencia y correcciones — 02/10/2026
