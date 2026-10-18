@@ -63,6 +63,9 @@ jobs:
 
   sonarqube:
     name: SonarQube Cloud
+    # El plan gratuito solo expone la rama principal: se analiza el código real de
+    # "calidad" (igual a main del proyecto) y se publica como rama principal.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -80,6 +83,7 @@ jobs:
           args: >
             -Dsonar.organization=divanopereznina
             -Dsonar.projectKey=DivanoPerezNina_sihsalus-frontend
+            -Dsonar.branch.name=main
             -Dsonar.sources=packages
             -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/__mocks__/**,**/*.test.ts,**/*.test.tsx,**/e2e/**
             -Dsonar.qualitygate.wait=true
