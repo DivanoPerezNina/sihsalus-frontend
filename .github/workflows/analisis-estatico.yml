@@ -16,7 +16,7 @@ on:
 
 permissions:
   contents: read
-  security-events: write   # publicar resultados SARIF en Code scanning
+  security-events: write # publicar resultados SARIF en Code scanning
   pull-requests: read
 
 jobs:
@@ -73,7 +73,7 @@ jobs:
       - uses: actions/checkout@v4
         if: env.SONAR_TOKEN != ''
         with:
-          fetch-depth: 0   # historial completo: blame y cálculo del código nuevo
+          fetch-depth: 0 # historial completo: blame y cálculo del código nuevo
       - name: Análisis y quality gate
         if: env.SONAR_TOKEN != ''
         uses: SonarSource/sonarqube-scan-action@v5
