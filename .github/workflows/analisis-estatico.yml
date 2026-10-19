@@ -1,0 +1,92 @@
+# Pipeline de análisis estático (tema individual de Arquitectura de Software, Divano Perez).
+# Corre solo en la rama "calidad" y en los PR hacia ella, para no disparar los workflows
+# del proyecto (ci.yml, e2e.yml, release.yml) que escuchan a main.
+#
+# Herramientas: Semgrep (reglas por patrón), CodeQL (flujo de datos) y SonarQube Cloud
+# (plataforma con quality gate). Los hallazgos de Semgrep y CodeQL se publican en la
+# pestaña Security > Code scanning del repositorio.
+name: Análisis estático
+
+on:
+  push:
+    branches: [calidad]
+  pull_request:
+    branches: [calidad]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # publicar resultados SARIF en Code scanning
+  pull-requests: read
+
+jobs:
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep:1.181.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Analizar con reglas públicas de TypeScript, React y secretos
+        run: |
+          semgrep scan --metrics=off \
+            --config p/typescript --config p/react --config p/secrets --config p/javascript \
+            --exclude '**/__mocks__/**' --exclude '**/e2e/**' \
+            --sarif -o semgrep.sarif --json-output=semgrep.json packages || true
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, collections
+          d = json.load(open('semgrep.json'))
+          r = d['results']
+          print(f"### Semgrep: {len(r)} hallazgos en {len(d['paths']['scanned'])} archivos\n")
+          print('| Regla | Hallazgos |\n|---|---|')
+          for regla, n in collections.Counter(x['check_id'].split('.')[-1] for x in r).most_common(15):
+              print(f'| `{regla}` | {n} |')
+          PY
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: codeql
+
+  sonarqube:
+    name: SonarQube Cloud
+    # El plan gratuito solo expone la rama principal: se analiza el código real de
+    # "calidad" (igual a main del proyecto) y se publica como rama principal.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.SONAR_TOKEN != ''
+        with:
+          fetch-depth: 0   # historial completo: blame y cálculo del código nuevo
+      - name: Análisis y quality gate
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_SCANNER_OPTS: -Xmx4g
+        with:
+          args: >
+            -Dsonar.organization=divanopereznina
+            -Dsonar.projectKey=DivanoPerezNina_sihsalus-frontend
+            -Dsonar.branch.name=main
+            -Dsonar.sources=packages
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/__mocks__/**,**/*.test.ts,**/*.test.tsx,**/e2e/**
+            -Dsonar.qualitygate.wait=false
+      - name: Falta configurar SonarQube Cloud
+        if: env.SONAR_TOKEN == ''
+        run: echo "::warning::Crea el secret SONAR_TOKEN para activar el análisis de SonarQube Cloud."
