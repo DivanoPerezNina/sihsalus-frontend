@@ -1,0 +1,47 @@
+import { useConfig, useSession } from '@openmrs/esm-framework';
+import { useMemo } from 'react';
+import useSWR from 'swr';
+
+import { crearFuenteDemo } from './api/demo';
+import { crearFuenteFrappe } from './api/frappe';
+import { rangoMarcaciones, type FuenteDatos, type TrabajadorRrhh } from './api/fuente-datos';
+import type { RrhhTurnosConfig } from './config-schema';
+import type { MesId } from './domain/reglas';
+
+export function useFuenteDatos(): { fuente: FuenteDatos; clave: string } {
+  const { fuenteDatos, frappeUrl } = useConfig<RrhhTurnosConfig>();
+  return useMemo(
+    () =>
+      fuenteDatos === 'frappe'
+        ? { fuente: crearFuenteFrappe(frappeUrl), clave: `frappe:${frappeUrl}` }
+        : { fuente: crearFuenteDemo(), clave: 'demo' },
+    [fuenteDatos, frappeUrl],
+  );
+}
+
+export function useTrabajadores() {
+  const { fuente, clave } = useFuenteDatos();
+  return useSWR(['rrhh', clave, 'trabajadores'], () => fuente.trabajadores());
+}
+
+export function useRolDelMes(mes: MesId) {
+  const { fuente, clave } = useFuenteDatos();
+  return useSWR(['rrhh', clave, 'rol', mes], () => fuente.rolDelMes(mes));
+}
+
+export function useMarcaciones(mes: MesId) {
+  const { fuente, clave } = useFuenteDatos();
+  return useSWR(['rrhh', clave, 'marcaciones', mes], () => fuente.marcaciones(...rangoMarcaciones(mes)));
+}
+
+// El usuario de SIH SALUS se vincula con su ficha de Frappe HR (Employee.user_id). En la demo, si no hay vínculo,
+// se muestra el trabajador configurado.
+export function useTrabajadorActual(): { trabajador?: TrabajadorRrhh; isLoading: boolean; error?: unknown } {
+  const { fuenteDatos, demoTrabajadorId } = useConfig<RrhhTurnosConfig>();
+  const usuario = useSession()?.user?.username;
+  const { data, isLoading, error } = useTrabajadores();
+  const trabajador =
+    data?.find((w) => usuario && w.usuario === usuario) ??
+    (fuenteDatos === 'demo' ? data?.find((w) => w.id === demoTrabajadorId) : undefined);
+  return { trabajador, isLoading, error };
+}
