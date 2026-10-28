@@ -5,7 +5,7 @@
 import { CODIGOS, type Codigo } from '../domain/catalogos';
 import type { Marcacion } from '../domain/asistencia';
 import type { MesId, Programacion } from '../domain/reglas';
-import { fechaHoraIso, fechaIso, leerFechaHora, type FuenteDatos, type TrabajadorRrhh } from './fuente-datos';
+import { estadoProvisional, fechaHoraIso, fechaIso, leerFechaHora, type FuenteDatos, type TrabajadorRrhh } from './fuente-datos';
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -119,6 +119,19 @@ export function crearFuenteFrappe(baseUrl: string, fetchFn: Fetch = (u, i) => fe
         tipo: c.log_type || undefined,
         dispositivo: c.device_id ?? undefined,
       }));
+    },
+
+    // ponytail: estado provisional hasta el flujo de aprobación (U7); los bloques y la escritura llegan con U5
+    async estadoCronograma(mes: MesId) {
+      return estadoProvisional(mes, new Date());
+    },
+
+    async bloques() {
+      return undefined;
+    },
+
+    async guardarTurno() {
+      throw new Error('Guardar turnos en Frappe HR todavía no está implementado (iteración I3, U5)');
     },
   };
 }

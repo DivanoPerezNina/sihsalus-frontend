@@ -4,22 +4,45 @@
  * - frappe: Frappe HR por su API REST, detrás del gateway de SIH SALUS.
  */
 import type { Marcacion } from '../domain/asistencia';
-import type { MesId, Programacion, UpssId, WorkerId } from '../domain/reglas';
+import type { Codigo } from '../domain/catalogos';
+import type { Bloque, MesId, Programacion, UpssId, WorkerId } from '../domain/reglas';
 
 export interface TrabajadorRrhh {
   id: WorkerId;
   nombre: string;
   upss: UpssId;
   anioIngreso: number;
+  profesion?: string; // abreviatura del colegio (CMP, CEP, TE…); define los bloques SUSALUD sugeridos
   usuario?: string; // usuario de SIH SALUS (Employee.user_id en Frappe HR)
   pinReloj?: string; // PIN del reloj ZKTeco (Employee.attendance_device_id)
+}
+
+export type EstadoCronograma = 'Borrador' | 'Enviado a aprobación' | 'Aprobado' | 'Publicado' | 'Cerrado';
+
+// Un turno nuevo, modificado o cancelado (cancelar = poner un código sin horario, como L)
+export interface CambioTurno {
+  mes: MesId;
+  upss: UpssId;
+  workerId: WorkerId;
+  dia: number;
+  codigo: Codigo;
+  bloques: Bloque[]; // RF26; vacío si el código no tiene horario
+  motivo?: string; // RF30: obligatorio si el cronograma está publicado
 }
 
 export interface FuenteDatos {
   trabajadores(): Promise<TrabajadorRrhh[]>;
   rolDelMes(mes: MesId): Promise<Programacion>;
   marcaciones(desde: Date, hasta: Date): Promise<Marcacion[]>;
+  estadoCronograma(mes: MesId, upss: UpssId): Promise<EstadoCronograma>;
+  bloques(mes: MesId, upss: UpssId, workerId: WorkerId, dia: number): Promise<Bloque[] | undefined>;
+  guardarTurno(cambio: CambioTurno): Promise<void>;
 }
+
+// ponytail: mientras no exista el flujo de aprobación (U7), los meses pasados y el actual se tratan como publicados
+// y los futuros como borrador. Con U7 el estado lo guarda el backend.
+export const estadoProvisional = (mes: MesId, ahora: Date): EstadoCronograma =>
+  mes <= mesDe(ahora) ? 'Publicado' : 'Borrador';
 
 export type TipoFuente = 'demo' | 'frappe';
 

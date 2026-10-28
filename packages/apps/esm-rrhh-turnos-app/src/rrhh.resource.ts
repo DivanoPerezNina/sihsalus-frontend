@@ -1,10 +1,10 @@
 import { useConfig, useSession } from '@openmrs/esm-framework';
 import { useMemo } from 'react';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 
 import { crearFuenteDemo } from './api/demo';
 import { crearFuenteFrappe } from './api/frappe';
-import { rangoMarcaciones, type FuenteDatos, type TrabajadorRrhh } from './api/fuente-datos';
+import { rangoMarcaciones, type CambioTurno, type FuenteDatos, type TrabajadorRrhh } from './api/fuente-datos';
 import type { RrhhTurnosConfig } from './config-schema';
 import type { MesId } from './domain/reglas';
 
@@ -27,6 +27,21 @@ export function useTrabajadores() {
 export function useRolDelMes(mes: MesId) {
   const { fuente, clave } = useFuenteDatos();
   return useSWR(['rrhh', clave, 'rol', mes], () => fuente.rolDelMes(mes));
+}
+
+export function useEstadoCronograma(mes: MesId, upss: string) {
+  const { fuente, clave } = useFuenteDatos();
+  return useSWR(upss ? ['rrhh', clave, 'estado', mes, upss] : null, () => fuente.estadoCronograma(mes, upss));
+}
+
+// Guarda un turno y vuelve a leer el rol del mes
+export function useGuardarTurno() {
+  const { fuente, clave } = useFuenteDatos();
+  const { mutate } = useSWRConfig();
+  return async (cambio: CambioTurno) => {
+    await fuente.guardarTurno(cambio);
+    await mutate(['rrhh', clave, 'rol', cambio.mes]);
+  };
 }
 
 export function useMarcaciones(mes: MesId) {

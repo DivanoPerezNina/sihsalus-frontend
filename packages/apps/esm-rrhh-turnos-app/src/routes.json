@@ -9,7 +9,6 @@
       "slot": "app-menu-item-slot",
       "component": "rrhhTurnosAppMenuLink",
       "order": 29,
-      "privileges": "app:home.rrhh.misTurnos",
       "online": true,
       "offline": true
     }
@@ -19,7 +18,6 @@
       "name": "rrhh-turnos-page",
       "component": "root",
       "route": "rrhh-turnos",
-      "privileges": "app:home.rrhh.misTurnos",
       "online": true,
       "offline": true
     }

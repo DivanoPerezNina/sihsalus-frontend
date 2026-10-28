@@ -1,4 +1,4 @@
-import { useConfig, useSession } from '@openmrs/esm-framework';
+import { useConfig, useSession, userHasAccess } from '@openmrs/esm-framework';
 import { render, screen, within } from '@testing-library/react';
 import { SWRConfig } from 'swr';
 
@@ -12,6 +12,7 @@ const mockUseSession = vi.mocked(useSession);
 
 vi.mock('@sihsalus/esm-rbac', () => ({
   AppErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  UnauthorizedState: () => <p>Unauthorized</p>,
 }));
 
 // Caché de SWR nueva en cada prueba
@@ -24,6 +25,7 @@ describe('Gestión de turnos con la fuente demo', () => {
   beforeEach(() => {
     mockUseConfig.mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004' });
     mockUseSession.mockReturnValue({ authenticated: true, sessionId: 'x', user: { username: 'admin.local' } } as never);
+    vi.mocked(userHasAccess).mockReturnValue(true);
   });
 
   it('muestra el título, el aviso de datos de demostración y las dos pestañas', async () => {
@@ -32,7 +34,22 @@ describe('Gestión de turnos con la fuente demo', () => {
     expect(screen.getByRole('heading', { name: 'Staff scheduling' })).toBeInTheDocument();
     expect(screen.getByText('Demo data')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'My shifts' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Schedule' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Attendance' })).toBeInTheDocument();
+  });
+
+  it('cada pestaña exige su privilegio: un trabajador solo ve Mis turnos', async () => {
+    vi.mocked(userHasAccess).mockImplementation((p) => p === 'app:home.rrhh.misTurnos');
+    conSWR(<Root />);
+    await screen.findByText(/Carmen Ahuanari Vela/);
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['My shifts']);
+  });
+
+  it('sin ningún privilegio de RRHH la página queda cerrada', () => {
+    vi.mocked(userHasAccess).mockReturnValue(false);
+    conSWR(<Root />);
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByText('Demo data')).not.toBeInTheDocument();
   });
 
   it('Mis turnos: usa el trabajador de demostración si el usuario no está vinculado', async () => {

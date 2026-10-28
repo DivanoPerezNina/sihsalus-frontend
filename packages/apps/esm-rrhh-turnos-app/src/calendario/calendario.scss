@@ -1,0 +1,152 @@
+.calendario {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.contenedor {
+  overflow-x: auto;
+  border: 1px solid var(--cds-border-subtle);
+}
+
+.matriz {
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  background: var(--cds-layer);
+
+  th,
+  td {
+    min-width: 2rem;
+    padding: 0;
+    border: 1px solid var(--cds-border-subtle);
+    text-align: center;
+  }
+
+  thead th {
+    padding: 0.25rem;
+    font-weight: 600;
+    background: var(--cds-layer-accent);
+  }
+
+  tbody td:nth-last-child(-n + 2) {
+    padding: 0 0.5rem;
+    white-space: nowrap;
+  }
+}
+
+.nombre {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 14rem;
+  padding: 0.25rem 0.5rem !important;
+  text-align: left !important;
+  font-weight: 400;
+  background: var(--cds-layer);
+}
+
+.apoyo {
+  color: var(--cds-text-secondary);
+}
+
+.inicialDia {
+  display: block;
+  font-weight: 400;
+  color: var(--cds-text-secondary);
+}
+
+.festivo {
+  color: var(--cds-text-error);
+}
+
+.celda {
+  display: block;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.5rem 0.25rem;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+}
+
+button.celda {
+  cursor: pointer;
+
+  &:hover {
+    background: var(--cds-layer-hover);
+  }
+
+  &:focus {
+    outline: 2px solid var(--cds-focus);
+    outline-offset: -2px;
+  }
+}
+
+.grupo_turno {
+  background: var(--cds-tag-background-blue);
+  color: var(--cds-tag-color-blue);
+}
+
+.grupo_guardia {
+  background: var(--cds-tag-background-purple);
+  color: var(--cds-tag-color-purple);
+}
+
+.grupo_licencia {
+  background: var(--cds-tag-background-green);
+  color: var(--cds-tag-color-green);
+}
+
+.grupo_descanso {
+  color: var(--cds-text-secondary);
+}
+
+.alerta {
+  font-weight: 600;
+  color: var(--cds-text-error);
+}
+
+.leyenda {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--cds-text-secondary);
+}
+
+.validaciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.bloques {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.bloque {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6rem 6rem auto;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.horas,
+.horasBajas {
+  margin: 1rem 0;
+}
+
+.horasBajas {
+  font-weight: 600;
+  color: var(--cds-text-error);
+}

@@ -4,18 +4,18 @@
  */
 import { CODIGOS, type Codigo } from '../domain/catalogos';
 import { finTurno, type Marcacion } from '../domain/asistencia';
-import { diasDelMes, inicioTurno, type MesId, type Programacion } from '../domain/reglas';
-import { mesDe, type FuenteDatos, type TrabajadorRrhh } from './fuente-datos';
+import { diasDelMes, inicioTurno, type Bloque, type MesId, type Programacion } from '../domain/reglas';
+import { estadoProvisional, mesDe, type CambioTurno, type FuenteDatos, type TrabajadorRrhh } from './fuente-datos';
 
 export const TRABAJADORES_DEMO: TrabajadorRrhh[] = [
-  { id: 'HSC-0001', nombre: 'Raúl Panduro Ríos', upss: 'HOSP', anioIngreso: 2011, usuario: 'rpanduro', pinReloj: '1001' },
-  { id: 'HSC-0002', nombre: 'Lucía Sangama Tuesta', upss: 'HOSP', anioIngreso: 2018, usuario: 'lsangama', pinReloj: '1002' },
-  { id: 'HSC-0004', nombre: 'Carmen Ahuanari Vela', upss: 'HOSP', anioIngreso: 2009, usuario: 'cahuanari', pinReloj: '1004' },
-  { id: 'HSC-0006', nombre: 'Milagros Huayunga Isuiza', upss: 'HOSP', anioIngreso: 2019, usuario: 'mhuayunga', pinReloj: '1006' },
-  { id: 'HSC-0008', nombre: 'Jorge Yumbato Rengifo', upss: 'HOSP', anioIngreso: 2006, usuario: 'jyumbato', pinReloj: '1008' },
-  { id: 'HSC-0011', nombre: 'Víctor del Águila Soria', upss: 'EMG', anioIngreso: 2008, usuario: 'vdelaguila', pinReloj: '1011' },
-  { id: 'HSC-0012', nombre: 'Paola Rengifo Tello', upss: 'EMG', anioIngreso: 2020, usuario: 'prengifo', pinReloj: '1012' },
-  { id: 'HSC-0014', nombre: 'Jhon Fasabi Lomas', upss: 'EMG', anioIngreso: 2023, usuario: 'jfasabi', pinReloj: '1014' },
+  { id: 'HSC-0001', profesion: 'CMP', nombre: 'Raúl Panduro Ríos', upss: 'HOSP', anioIngreso: 2011, usuario: 'rpanduro', pinReloj: '1001' },
+  { id: 'HSC-0002', profesion: 'CMP', nombre: 'Lucía Sangama Tuesta', upss: 'HOSP', anioIngreso: 2018, usuario: 'lsangama', pinReloj: '1002' },
+  { id: 'HSC-0004', profesion: 'CEP', nombre: 'Carmen Ahuanari Vela', upss: 'HOSP', anioIngreso: 2009, usuario: 'cahuanari', pinReloj: '1004' },
+  { id: 'HSC-0006', profesion: 'CEP', nombre: 'Milagros Huayunga Isuiza', upss: 'HOSP', anioIngreso: 2019, usuario: 'mhuayunga', pinReloj: '1006' },
+  { id: 'HSC-0008', profesion: 'TE', nombre: 'Jorge Yumbato Rengifo', upss: 'HOSP', anioIngreso: 2006, usuario: 'jyumbato', pinReloj: '1008' },
+  { id: 'HSC-0011', profesion: 'CMP', nombre: 'Víctor del Águila Soria', upss: 'EMG', anioIngreso: 2008, usuario: 'vdelaguila', pinReloj: '1011' },
+  { id: 'HSC-0012', profesion: 'CMP', nombre: 'Paola Rengifo Tello', upss: 'EMG', anioIngreso: 2020, usuario: 'prengifo', pinReloj: '1012' },
+  { id: 'HSC-0014', profesion: 'CEP', nombre: 'Jhon Fasabi Lomas', upss: 'EMG', anioIngreso: 2023, usuario: 'jfasabi', pinReloj: '1014' },
 ];
 
 // ponytail: patrón semanal desfasado por trabajador; 42 h por semana (unas 180 h al mes) y 4 o 5 guardias al mes.
@@ -79,10 +79,27 @@ export function marcacionesDemo(
   return out.sort((a, b) => a.fechaHora.getTime() - b.fechaHora.getTime());
 }
 
+// Cambios guardados durante la sesión del navegador (la demo no persiste: al recargar vuelve al patrón)
+const CAMBIOS = new Map<string, CambioTurno>();
+const clave = (mes: MesId, upss: string, workerId: string, dia: number) => `${mes}|${upss}|${workerId}|${dia}`;
+
+export const reiniciarDemo = () => CAMBIOS.clear();
+
 export function crearFuenteDemo(ahora: () => Date = () => new Date()): FuenteDatos {
   return {
     trabajadores: async () => TRABAJADORES_DEMO,
-    rolDelMes: async (mes) => rolDemo(mes),
+    rolDelMes: async (mes) => {
+      const p = rolDemo(mes);
+      for (const c of CAMBIOS.values())
+        if (c.mes === mes) p[mes][c.upss] = { ...p[mes][c.upss], [c.workerId]: { ...p[mes][c.upss]?.[c.workerId], [c.dia]: c.codigo } };
+      return p;
+    },
     marcaciones: async (desde, hasta) => marcacionesDemo(desde, hasta, ahora()),
+    estadoCronograma: async (mes) => estadoProvisional(mes, ahora()),
+    bloques: async (mes, upss, workerId, dia): Promise<Bloque[] | undefined> =>
+      CAMBIOS.get(clave(mes, upss, workerId, dia))?.bloques,
+    guardarTurno: async (c) => {
+      CAMBIOS.set(clave(c.mes, c.upss, c.workerId, c.dia), c);
+    },
   };
 }
