@@ -44,6 +44,11 @@ export function useGuardarTurno() {
   };
 }
 
+export function useBloquesDelMes(mes: MesId) {
+  const { fuente, clave } = useFuenteDatos();
+  return useSWR(['rrhh', clave, 'bloquesMes', mes], () => fuente.bloquesDelMes(mes));
+}
+
 export function useMarcaciones(mes: MesId) {
   const { fuente, clave } = useFuenteDatos();
   return useSWR(['rrhh', clave, 'marcaciones', mes], () => fuente.marcaciones(...rangoMarcaciones(mes)));

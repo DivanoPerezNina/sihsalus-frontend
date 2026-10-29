@@ -16,7 +16,7 @@ const sangama = TRABAJADORES_DEMO[1]; // HSC-0002, ingresó en 2018: tope de 5 g
 describe('Calendario del jefe de UPSS', () => {
   beforeEach(() => {
     reiniciarDemo();
-    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004' });
+    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED' } });
     vi.mocked(useSession).mockReturnValue({ authenticated: true, sessionId: 'x', user: { username: 'jefe' } } as never);
     vi.mocked(userHasAccess).mockReturnValue(true);
   });
@@ -59,7 +59,7 @@ describe('Calendario del jefe de UPSS', () => {
 describe('Modal del turno: validaciones', () => {
   beforeEach(() => {
     reiniciarDemo();
-    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004' });
+    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED' } });
   });
 
   // Cinco guardias en noviembre (el tope de quien ingresó en 2018) y una mañana en Consulta externa el día 20

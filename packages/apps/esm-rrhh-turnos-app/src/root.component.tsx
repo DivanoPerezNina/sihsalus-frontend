@@ -8,6 +8,7 @@ import Calendario from './calendario/calendario.component';
 import type { RrhhTurnosConfig } from './config-schema';
 import { appName, moduleName } from './constants';
 import MisTurnos from './mis-turnos/mis-turnos.component';
+import Reportes from './reportes/reportes.component';
 import { PRIVILEGIOS, usePrivilegios } from './privilegios';
 import styles from './root.scss';
 
@@ -21,6 +22,7 @@ export default function Root() {
     p.misTurnos && { id: 'mis-turnos', texto: t('misTurnos', 'My shifts'), contenido: <MisTurnos /> },
     p.programacion && { id: 'calendario', texto: t('calendario', 'Schedule'), contenido: <Calendario /> },
     p.asistencia && { id: 'asistencia', texto: t('asistencia', 'Attendance'), contenido: <Asistencia /> },
+    p.reportes && { id: 'reportes', texto: t('reportes', 'Reports'), contenido: <Reportes /> },
   ].filter((x): x is { id: string; texto: string; contenido: JSX.Element } => Boolean(x));
 
   return (

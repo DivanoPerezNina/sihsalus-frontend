@@ -8314,6 +8314,8 @@ __metadata:
     "@types/react": "npm:^18.3.21"
     "@types/react-dom": "npm:^18.3.0"
     "@typescript/native": "npm:typescript@7.0.2"
+    exceljs: "npm:^4.4.0"
+    jszip: "npm:^3.10.1"
     openmrs: "workspace:*"
     react: "npm:^18.3.1"
     react-dom: "npm:^18.3.1"

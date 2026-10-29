@@ -5,17 +5,21 @@
 import { CODIGOS, type Codigo } from '../domain/catalogos';
 import { finTurno, type Marcacion } from '../domain/asistencia';
 import { diasDelMes, inicioTurno, type Bloque, type MesId, type Programacion } from '../domain/reglas';
-import { estadoProvisional, mesDe, type CambioTurno, type FuenteDatos, type TrabajadorRrhh } from './fuente-datos';
+import { estadoProvisional, mesDe, type CambioTurno, type DatosSusalud, type FuenteDatos, type TrabajadorRrhh } from './fuente-datos';
+
+const s = (apellidos: string, nombres: string, numDoc: string, colegiatura: string): DatosSusalud => ({
+  tipoDoc: 'DNI', numDoc, apellidos, nombres, colegiatura, especialidad: 'SIN ESPECIALIDAD',
+});
 
 export const TRABAJADORES_DEMO: TrabajadorRrhh[] = [
-  { id: 'HSC-0001', profesion: 'CMP', nombre: 'Raúl Panduro Ríos', upss: 'HOSP', anioIngreso: 2011, usuario: 'rpanduro', pinReloj: '1001' },
-  { id: 'HSC-0002', profesion: 'CMP', nombre: 'Lucía Sangama Tuesta', upss: 'HOSP', anioIngreso: 2018, usuario: 'lsangama', pinReloj: '1002' },
-  { id: 'HSC-0004', profesion: 'CEP', nombre: 'Carmen Ahuanari Vela', upss: 'HOSP', anioIngreso: 2009, usuario: 'cahuanari', pinReloj: '1004' },
-  { id: 'HSC-0006', profesion: 'CEP', nombre: 'Milagros Huayunga Isuiza', upss: 'HOSP', anioIngreso: 2019, usuario: 'mhuayunga', pinReloj: '1006' },
-  { id: 'HSC-0008', profesion: 'TE', nombre: 'Jorge Yumbato Rengifo', upss: 'HOSP', anioIngreso: 2006, usuario: 'jyumbato', pinReloj: '1008' },
-  { id: 'HSC-0011', profesion: 'CMP', nombre: 'Víctor del Águila Soria', upss: 'EMG', anioIngreso: 2008, usuario: 'vdelaguila', pinReloj: '1011' },
-  { id: 'HSC-0012', profesion: 'CMP', nombre: 'Paola Rengifo Tello', upss: 'EMG', anioIngreso: 2020, usuario: 'prengifo', pinReloj: '1012' },
-  { id: 'HSC-0014', profesion: 'CEP', nombre: 'Jhon Fasabi Lomas', upss: 'EMG', anioIngreso: 2023, usuario: 'jfasabi', pinReloj: '1014' },
+  { id: 'HSC-0001', profesion: 'CMP', nombre: 'Raúl Panduro Ríos', upss: 'HOSP', anioIngreso: 2011, usuario: 'rpanduro', pinReloj: '1001', susalud: s('PANDURO RÍOS', 'RAÚL', '41001100', '010010') },
+  { id: 'HSC-0002', profesion: 'CMP', nombre: 'Lucía Sangama Tuesta', upss: 'HOSP', anioIngreso: 2018, usuario: 'lsangama', pinReloj: '1002', susalud: s('SANGAMA TUESTA', 'LUCÍA', '41002100', '010020') },
+  { id: 'HSC-0004', profesion: 'CEP', nombre: 'Carmen Ahuanari Vela', upss: 'HOSP', anioIngreso: 2009, usuario: 'cahuanari', pinReloj: '1004', susalud: s('AHUANARI VELA', 'CARMEN', '41004100', '010040') },
+  { id: 'HSC-0006', profesion: 'CEP', nombre: 'Milagros Huayunga Isuiza', upss: 'HOSP', anioIngreso: 2019, usuario: 'mhuayunga', pinReloj: '1006', susalud: s('HUAYUNGA ISUIZA', 'MILAGROS', '41006100', '010060') },
+  { id: 'HSC-0008', profesion: 'TE', nombre: 'Jorge Yumbato Rengifo', upss: 'HOSP', anioIngreso: 2006, usuario: 'jyumbato', pinReloj: '1008', susalud: s('YUMBATO RENGIFO', 'JORGE', '41008100', '000000') },
+  { id: 'HSC-0011', profesion: 'CMP', nombre: 'Víctor del Águila Soria', upss: 'EMG', anioIngreso: 2008, usuario: 'vdelaguila', pinReloj: '1011', susalud: s('DEL ÁGUILA SORIA', 'VÍCTOR', '41011101', '010110') },
+  { id: 'HSC-0012', profesion: 'CMP', nombre: 'Paola Rengifo Tello', upss: 'EMG', anioIngreso: 2020, usuario: 'prengifo', pinReloj: '1012', susalud: s('RENGIFO TELLO', 'PAOLA', '41012101', '010120') },
+  { id: 'HSC-0014', profesion: 'CEP', nombre: 'Jhon Fasabi Lomas', upss: 'EMG', anioIngreso: 2023, usuario: 'jfasabi', pinReloj: '1014', susalud: s('FASABI LOMAS', 'JHON', '41014101', '010140') },
 ];
 
 // ponytail: patrón semanal desfasado por trabajador; 42 h por semana (unas 180 h al mes) y 4 o 5 guardias al mes.
@@ -98,6 +102,8 @@ export function crearFuenteDemo(ahora: () => Date = () => new Date()): FuenteDat
     estadoCronograma: async (mes) => estadoProvisional(mes, ahora()),
     bloques: async (mes, upss, workerId, dia): Promise<Bloque[] | undefined> =>
       CAMBIOS.get(clave(mes, upss, workerId, dia))?.bloques,
+    bloquesDelMes: async (mes) =>
+      Object.fromEntries([...CAMBIOS.values()].filter((c) => c.mes === mes && c.bloques.length).map((c) => [`${c.upss}|${c.workerId}|${c.dia}`, c.bloques])),
     guardarTurno: async (c) => {
       CAMBIOS.set(clave(c.mes, c.upss, c.workerId, c.dia), c);
     },

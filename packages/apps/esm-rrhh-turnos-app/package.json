@@ -42,7 +42,9 @@
     "access": "public"
   },
   "dependencies": {
-    "@sihsalus/esm-rbac": "workspace:*"
+    "@sihsalus/esm-rbac": "workspace:*",
+    "exceljs": "^4.4.0",
+    "jszip": "^3.10.1"
   },
   "peerDependencies": {
     "@carbon/react": "1.x",

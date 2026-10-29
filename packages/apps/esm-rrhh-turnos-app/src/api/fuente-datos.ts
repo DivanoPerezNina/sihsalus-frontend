@@ -15,6 +15,16 @@ export interface TrabajadorRrhh {
   profesion?: string; // abreviatura del colegio (CMP, CEP, TE…); define los bloques SUSALUD sugeridos
   usuario?: string; // usuario de SIH SALUS (Employee.user_id en Frappe HR)
   pinReloj?: string; // PIN del reloj ZKTeco (Employee.attendance_device_id)
+  susalud?: DatosSusalud; // RF27, RF31: datos que pide la plantilla TuASUSALUD
+}
+
+export interface DatosSusalud {
+  tipoDoc: 'DNI' | 'CE';
+  numDoc: string;
+  apellidos: string;
+  nombres: string;
+  colegiatura: string;
+  especialidad: string;
 }
 
 export type EstadoCronograma = 'Borrador' | 'Enviado a aprobación' | 'Aprobado' | 'Publicado' | 'Cerrado';
@@ -36,6 +46,8 @@ export interface FuenteDatos {
   marcaciones(desde: Date, hasta: Date): Promise<Marcacion[]>;
   estadoCronograma(mes: MesId, upss: UpssId): Promise<EstadoCronograma>;
   bloques(mes: MesId, upss: UpssId, workerId: WorkerId, dia: number): Promise<Bloque[] | undefined>;
+  // Bloques guardados del mes, por `upss|workerId|dia` (los turnos sin bloques usan los sugeridos)
+  bloquesDelMes(mes: MesId): Promise<Record<string, Bloque[]>>;
   guardarTurno(cambio: CambioTurno): Promise<void>;
 }
 

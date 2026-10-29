@@ -66,12 +66,23 @@ describe('fuente Frappe HR', () => {
           user_id: 'rpanduro',
           attendance_device_id: '1001',
           date_of_joining: '2011-03-01',
+          sihsalus_usuario: 'rpanduro.hsc',
+          sihsalus_profesion: 'CMP',
         },
       ]),
     );
     const t = await crearFuenteFrappe('/rrhh/', fetchFn).trabajadores();
     expect(t).toEqual([
-      { id: 'HR-EMP-00001', nombre: 'Raúl Panduro', upss: 'HOSP', anioIngreso: 2011, usuario: 'rpanduro', pinReloj: '1001' },
+      {
+        id: 'HR-EMP-00001',
+        nombre: 'Raúl Panduro',
+        upss: 'HOSP',
+        anioIngreso: 2011,
+        profesion: 'CMP',
+        usuario: 'rpanduro.hsc',
+        pinReloj: '1001',
+        susalud: { tipoDoc: 'DNI', numDoc: '', apellidos: '', nombres: '', colegiatura: '', especialidad: '' },
+      },
     ]);
     const url = new URL(fetchFn.mock.calls[0][0], 'http://x');
     expect(url.pathname).toBe('/rrhh/api/resource/Employee');
@@ -107,6 +118,40 @@ describe('fuente Frappe HR', () => {
     expect(JSON.parse(url.searchParams.get('filters') ?? '')).toEqual([
       ['time', 'between', ['2026-10-01 00:00:00', '2026-11-01 00:00:00']],
     ]);
+  });
+
+  it('guardar un turno cancela la asignación del día, crea la nueva con sus bloques y deja el motivo', async () => {
+    const llamadas: { url: string; metodo: string; cuerpo?: unknown }[] = [];
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      llamadas.push({ url, metodo: init?.method ?? 'GET', cuerpo: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (url.includes('/api/resource/Shift%20Assignment?'))
+        return respuesta([{ name: 'HR-SHA-1', start_date: '2026-11-16', end_date: '2026-11-16' }]);
+      if (url.endsWith('/api/resource/Shift%20Assignment')) return { ok: true, status: 200, json: async () => ({ data: { name: 'HR-SHA-2' } }) } as Response;
+      return respuesta({});
+    });
+    const bloques = [{ servicio: 'HOSP' as const, ingreso: '07:00', salida: '19:00' }];
+    await crearFuenteFrappe('/rrhh', fetchFn).guardarTurno({
+      mes: '2026-11', upss: 'HOSP', workerId: 'E1', dia: 16, codigo: 'GDO', bloques, motivo: 'Reemplazo',
+    });
+    expect(llamadas.map((l) => `${l.metodo} ${l.url.split('?')[0]}`)).toEqual([
+      'GET /rrhh/api/resource/Shift%20Assignment',
+      'POST /rrhh/api/method/frappe.client.cancel',
+      'POST /rrhh/api/resource/Shift%20Assignment',
+      'POST /rrhh/api/resource/Comment',
+    ]);
+    expect(llamadas[2].cuerpo).toMatchObject({ employee: 'E1', shift_type: 'GDO', start_date: '2026-11-16', end_date: '2026-11-16', docstatus: 1 });
+    expect(JSON.parse((llamadas[2].cuerpo as { sihsalus_bloques: string }).sihsalus_bloques)).toEqual(bloques);
+    expect(llamadas[3].cuerpo).toMatchObject({ reference_name: 'HR-SHA-2', content: 'Motivo del cambio: Reemplazo' });
+  });
+
+  it('cancelar un turno (código sin horario) no crea una asignación nueva', async () => {
+    const metodos: string[] = [];
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      metodos.push(`${init?.method ?? 'GET'} ${url.split('?')[0]}`);
+      return url.includes('Shift%20Assignment?') ? respuesta([{ name: 'HR-SHA-1', start_date: '2026-11-16', end_date: '2026-11-16' }]) : respuesta({});
+    });
+    await crearFuenteFrappe('/rrhh', fetchFn).guardarTurno({ mes: '2026-11', upss: 'HOSP', workerId: 'E1', dia: 16, codigo: 'L', bloques: [] });
+    expect(metodos).toEqual(['GET /rrhh/api/resource/Shift%20Assignment', 'POST /rrhh/api/method/frappe.client.cancel']);
   });
 
   it('un error de Frappe HR no se muestra tal cual: se lanza un error con el código', async () => {

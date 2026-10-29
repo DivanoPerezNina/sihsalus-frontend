@@ -93,3 +93,19 @@
   border: 1px solid var(--cds-border-subtle);
   background: var(--cds-layer);
 }
+
+.subtitulo {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.boton {
+  margin-top: 1rem;
+}
+
+.rango {
+  display: flex;
+  gap: 1rem;
+  max-width: 16rem;
+}
