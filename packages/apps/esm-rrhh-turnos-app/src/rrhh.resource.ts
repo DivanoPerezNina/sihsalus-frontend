@@ -67,6 +67,11 @@ export function useResponderTurno() {
   };
 }
 
+export function useEventosSync() {
+  const { fuente, clave } = useFuenteDatos();
+  return useSWR(['rrhh', clave, 'eventos'], () => fuente.eventosSync(), { refreshInterval: 30_000 });
+}
+
 export function useBloquesDelMes(mes: MesId) {
   const { fuente, clave } = useFuenteDatos();
   return useSWR(['rrhh', clave, 'bloquesMes', mes], () => fuente.bloquesDelMes(mes));

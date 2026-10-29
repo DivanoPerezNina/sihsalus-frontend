@@ -110,6 +110,13 @@ export function crearFuenteDemo(ahora: () => Date = () => new Date()): FuenteDat
       ESTADOS.set(`${mes}|${upss}`, estado);
     },
     confirmaciones: async (mes) => [...RESPUESTAS.values()].filter((r) => r.mes === mes),
+    eventosSync: async () => {
+      const hace = (min: number) => new Date(ahora().getTime() - min * 60_000);
+      return [
+        { fecha: hace(3), flujo: 'F1', descripcion: 'Alta de profesional de OpenMRS en Frappe HR', referencia: 'demo-1', estado: 'ok', intentos: 0 },
+        { fecha: hace(90), flujo: 'F1', descripcion: 'Alta de profesional de OpenMRS en Frappe HR', referencia: 'demo-2', estado: 'error', intentos: 3 },
+      ];
+    },
     responderTurno: async (r) => {
       RESPUESTAS.set(clave(r.mes, r.upss, r.workerId, r.dia), r);
     },

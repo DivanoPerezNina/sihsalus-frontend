@@ -12,6 +12,7 @@ import {
   fechaIso,
   leerFechaHora,
   type CambioTurno,
+  type EventoSync,
   type FuenteDatos,
   type TrabajadorRrhh,
 } from './fuente-datos';
@@ -235,6 +236,21 @@ export function crearFuenteFrappe(baseUrl: string, fetchFn: Fetch = (u, i) => fe
         estado: a.sihsalus_confirmacion,
         motivo: a.sihsalus_motivo_respuesta ?? undefined,
       }));
+    },
+
+    async eventosSync(): Promise<EventoSync[]> {
+      const q = new URLSearchParams({
+        fields: JSON.stringify(['creation', 'flujo', 'descripcion', 'referencia', 'estado', 'intentos']),
+        order_by: 'creation desc',
+        limit_page_length: '50',
+      });
+      const r = await fetchFn(`${base}/api/resource/${encodeURIComponent('Evento Sincronizacion')}?${q}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!r.ok) throw new ErrorFrappe(r.status);
+      const filas = ((await r.json()) as { data: { creation: string; flujo: string; descripcion: string; referencia?: string; estado: EventoSync['estado']; intentos?: number }[] }).data;
+      return filas.map((e) => ({ ...e, fecha: leerFechaHora(e.creation), intentos: e.intentos ?? 0 }));
     },
 
     async responderTurno(r: ConfirmacionTurno) {

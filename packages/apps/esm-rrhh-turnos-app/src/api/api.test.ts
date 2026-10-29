@@ -195,3 +195,14 @@ describe('fuente Frappe HR', () => {
     await expect(crearFuenteFrappe('/rrhh', fetchFn).trabajadores()).rejects.toThrow('Frappe HR respondió 403');
   });
 });
+
+describe('estado de sincronización (RF12)', () => {
+  it('el estado global es error si algún evento falló, pendiente si alguno espera y ok en otro caso', async () => {
+    const { estadoGlobal } = await import('../sincronizacion/sincronizacion.component');
+    const e = (estado: 'ok' | 'pendiente' | 'error') => ({ fecha: new Date(), flujo: 'F1', descripcion: '', estado, intentos: 0 });
+    expect(estadoGlobal([e('ok'), e('error'), e('pendiente')])).toBe('error');
+    expect(estadoGlobal([e('ok'), e('pendiente')])).toBe('pendiente');
+    expect(estadoGlobal([e('ok')])).toBe('ok');
+    expect(estadoGlobal([])).toBe('ok');
+  });
+});

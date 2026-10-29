@@ -41,6 +41,16 @@ export interface CambioTurno {
   motivo?: string; // RF30: obligatorio si el cronograma está publicado
 }
 
+// RF11, RF12: evento de la capa de integración (Debezium y Camel), registrado en Frappe HR
+export interface EventoSync {
+  fecha: Date;
+  flujo: string;
+  descripcion: string;
+  referencia?: string;
+  estado: 'ok' | 'pendiente' | 'error';
+  intentos: number;
+}
+
 export interface FuenteDatos {
   trabajadores(): Promise<TrabajadorRrhh[]>;
   rolDelMes(mes: MesId): Promise<Programacion>;
@@ -55,6 +65,7 @@ export interface FuenteDatos {
   // RF03, RF20: respuestas de los trabajadores a sus turnos publicados
   confirmaciones(mes: MesId): Promise<ConfirmacionTurno[]>;
   responderTurno(respuesta: ConfirmacionTurno): Promise<void>;
+  eventosSync(): Promise<EventoSync[]>;
 }
 
 // Estado de un cronograma que todavía no tiene registro: los meses pasados y el actual se consideran publicados
