@@ -154,6 +154,42 @@ describe('fuente Frappe HR', () => {
     expect(metodos).toEqual(['GET /rrhh/api/resource/Shift%20Assignment', 'POST /rrhh/api/method/frappe.client.cancel']);
   });
 
+  it('el estado del cronograma se crea la primera vez y luego se actualiza, con la observación como comentario', async () => {
+    const metodos: string[] = [];
+    let existe = false;
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      metodos.push(`${init?.method ?? 'GET'} ${decodeURIComponent(url)}`);
+      if (!init?.method && url.includes('CT-2026-11-HOSP')) return existe ? respuesta({ estado: 'Enviado a aprobación' }) : respuesta(null, 404);
+      return respuesta({});
+    });
+    const f = crearFuenteFrappe('/rrhh', fetchFn);
+    await f.cambiarEstado('2026-11', 'HOSP', 'Enviado a aprobación');
+    existe = true;
+    await f.cambiarEstado('2026-11', 'HOSP', 'Borrador', 'Falta cubrir el 12');
+    expect(metodos).toEqual([
+      'GET /rrhh/api/resource/Cronograma Turnos/CT-2026-11-HOSP',
+      'POST /rrhh/api/resource/Cronograma Turnos',
+      'GET /rrhh/api/resource/Cronograma Turnos/CT-2026-11-HOSP',
+      'PUT /rrhh/api/resource/Cronograma Turnos/CT-2026-11-HOSP',
+      'POST /rrhh/api/resource/Comment',
+    ]);
+    expect(await f.estadoCronograma('2026-11', 'HOSP')).toBe('Enviado a aprobación');
+  });
+
+  it('la respuesta del trabajador actualiza su asignación del día', async () => {
+    const llamadas: { url: string; metodo: string; cuerpo?: unknown }[] = [];
+    const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+      llamadas.push({ url: decodeURIComponent(url), metodo: init?.method ?? 'GET', cuerpo: init?.body ? JSON.parse(String(init.body)) : undefined });
+      return url.includes('Shift%20Assignment?') ? respuesta([{ name: 'HR-SHA-9', start_date: '2026-11-03', end_date: '2026-11-03' }]) : respuesta({});
+    });
+    await crearFuenteFrappe('/rrhh', fetchFn).responderTurno({ mes: '2026-11', upss: 'HOSP', workerId: 'E1', dia: 3, estado: 'no_asiste', motivo: 'Licencia' });
+    expect(llamadas[1]).toEqual({
+      url: '/rrhh/api/resource/Shift Assignment/HR-SHA-9',
+      metodo: 'PUT',
+      cuerpo: { sihsalus_confirmacion: 'no_asiste', sihsalus_motivo_respuesta: 'Licencia' },
+    });
+  });
+
   it('un error de Frappe HR no se muestra tal cual: se lanza un error con el código', async () => {
     const fetchFn = vi.fn(async (_url: string) => respuesta(null, 403));
     await expect(crearFuenteFrappe('/rrhh', fetchFn).trabajadores()).rejects.toThrow('Frappe HR respondió 403');

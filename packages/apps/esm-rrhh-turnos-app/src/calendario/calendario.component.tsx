@@ -8,7 +8,9 @@ import { CODIGOS, type Codigo } from '../domain/catalogos';
 import { PARAMS_DEFECTO, maxGuardiasPorIngreso } from '../domain/parametros';
 import { diasDelMes, guardiasMes, horasMes, yaInicio } from '../domain/reglas';
 import { usePrivilegios } from '../privilegios';
-import { useEstadoCronograma, useRolDelMes, useTrabajadorActual, useTrabajadores } from '../rrhh.resource';
+import { esEditable } from '../domain/flujo';
+import { useConfirmaciones, useEstadoCronograma, useRolDelMes, useTrabajadorActual, useTrabajadores } from '../rrhh.resource';
+import AccionesCronograma from './acciones-cronograma.component';
 import SelectorMes from '../selector-mes.component';
 import styles from './calendario.scss';
 import ModalTurno from './modal-turno.component';
@@ -26,6 +28,7 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
   const trabajadores = useTrabajadores();
   const rol = useRolDelMes(mes);
   const { trabajador: actual } = useTrabajadorActual();
+  const confirmaciones = useConfirmaciones(mes);
 
   const listaUpss = useMemo(() => [...new Set((trabajadores.data ?? []).map((w) => w.upss))].sort(), [trabajadores.data]);
   // Por defecto, la UPSS del jefe que inició sesión
@@ -47,7 +50,17 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
     );
 
   const dias = diasDelMes(mes);
-  const editable = programacionEditar && estado.data !== undefined && estado.data !== 'Cerrado' && estado.data !== 'Enviado a aprobación';
+  const editable = programacionEditar && estado.data !== undefined && esEditable(estado.data);
+  // RF20: turnos a los que el trabajador respondió que no asistirá
+  const noAsiste = new Map(
+    (confirmaciones.data ?? []).filter((c) => c.upss === upss && c.estado === 'no_asiste').map((c) => [`${c.workerId}|${c.dia}`, c.motivo ?? '']),
+  );
+  // Personal propio bajo las horas mínimas o sobre el tope de guardias (se avisa antes de enviar o publicar)
+  const alertas = rol.data
+    ? filas.filter(
+        (w) => w.upss === upss && (horasMes(rol.data, mes, w.id) < PARAMS_DEFECTO.horasMinimasMes || guardiasMes(rol.data, mes, w.id) > maxGuardiasPorIngreso(w.anioIngreso)),
+      ).length
+    : 0;
 
   return (
     <div className={styles.calendario}>
@@ -61,6 +74,7 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
             {t(`estado_${estado.data}`, estado.data)}
           </Tag>
         )}
+        {estado.data && <AccionesCronograma mes={mes} upss={upss} estado={estado.data} alertas={alertas} />}
       </div>
 
       {trabajadores.isLoading || rol.isLoading ? (
@@ -97,9 +111,13 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
                       const c: Codigo | undefined = r[d.d];
                       const sePuede = editable && !yaInicio(mes, d.d, c ?? 'L', ahora);
                       const texto = c ?? '·';
-                      const etiqueta = `${w.nombre}, ${d.d}: ${c ? CODIGOS[c].nombre : t('sinAsignar', 'unassigned')}`;
+                      const motivoNoAsiste = noAsiste.get(`${w.id}|${d.d}`);
+                      const etiqueta =
+                        `${w.nombre}, ${d.d}: ${c ? CODIGOS[c].nombre : t('sinAsignar', 'unassigned')}` +
+                        (motivoNoAsiste !== undefined ? ` · ${t('noAsistira', 'will not attend')}${motivoNoAsiste ? `: ${motivoNoAsiste}` : ''}` : '');
+                      const clases = [c && styles[`grupo_${CODIGOS[c].grupo}`], motivoNoAsiste !== undefined && styles.noAsiste].filter(Boolean).join(' ');
                       return (
-                        <td key={d.d} className={c ? styles[`grupo_${CODIGOS[c].grupo}`] : undefined}>
+                        <td key={d.d} className={clases || undefined}>
                           {sePuede ? (
                             <button type="button" className={styles.celda} aria-label={etiqueta} onClick={() => setAbierto({ trabajador: w, dia: d.d })}>
                               {texto}

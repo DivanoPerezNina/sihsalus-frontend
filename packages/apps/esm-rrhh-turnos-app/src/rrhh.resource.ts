@@ -4,9 +4,9 @@ import useSWR, { useSWRConfig } from 'swr';
 
 import { crearFuenteDemo } from './api/demo';
 import { crearFuenteFrappe } from './api/frappe';
-import { rangoMarcaciones, type CambioTurno, type FuenteDatos, type TrabajadorRrhh } from './api/fuente-datos';
+import { rangoMarcaciones, type CambioTurno, type EstadoCronograma, type FuenteDatos, type TrabajadorRrhh } from './api/fuente-datos';
 import type { RrhhTurnosConfig } from './config-schema';
-import type { MesId } from './domain/reglas';
+import type { ConfirmacionTurno, MesId } from './domain/reglas';
 
 export function useFuenteDatos(): { fuente: FuenteDatos; clave: string } {
   const { fuenteDatos, frappeUrl } = useConfig<RrhhTurnosConfig>();
@@ -41,6 +41,29 @@ export function useGuardarTurno() {
   return async (cambio: CambioTurno) => {
     await fuente.guardarTurno(cambio);
     await mutate(['rrhh', clave, 'rol', cambio.mes]);
+  };
+}
+
+export function useCambiarEstado() {
+  const { fuente, clave } = useFuenteDatos();
+  const { mutate } = useSWRConfig();
+  return async (mes: MesId, upss: string, estado: EstadoCronograma, observacion?: string) => {
+    await fuente.cambiarEstado(mes, upss, estado, observacion);
+    await mutate(['rrhh', clave, 'estado', mes, upss]);
+  };
+}
+
+export function useConfirmaciones(mes: MesId) {
+  const { fuente, clave } = useFuenteDatos();
+  return useSWR(['rrhh', clave, 'confirmaciones', mes], () => fuente.confirmaciones(mes));
+}
+
+export function useResponderTurno() {
+  const { fuente, clave } = useFuenteDatos();
+  const { mutate } = useSWRConfig();
+  return async (r: ConfirmacionTurno) => {
+    await fuente.responderTurno(r);
+    await mutate(['rrhh', clave, 'confirmaciones', r.mes]);
   };
 }
 

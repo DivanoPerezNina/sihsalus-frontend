@@ -5,7 +5,10 @@
  */
 import type { Marcacion } from '../domain/asistencia';
 import type { Codigo } from '../domain/catalogos';
-import type { Bloque, MesId, Programacion, UpssId, WorkerId } from '../domain/reglas';
+import type { EstadoCronograma } from '../domain/flujo';
+import type { Bloque, ConfirmacionTurno, MesId, Programacion, UpssId, WorkerId } from '../domain/reglas';
+
+export type { EstadoCronograma };
 
 export interface TrabajadorRrhh {
   id: WorkerId;
@@ -27,8 +30,6 @@ export interface DatosSusalud {
   especialidad: string;
 }
 
-export type EstadoCronograma = 'Borrador' | 'Enviado a aprobación' | 'Aprobado' | 'Publicado' | 'Cerrado';
-
 // Un turno nuevo, modificado o cancelado (cancelar = poner un código sin horario, como L)
 export interface CambioTurno {
   mes: MesId;
@@ -49,10 +50,15 @@ export interface FuenteDatos {
   // Bloques guardados del mes, por `upss|workerId|dia` (los turnos sin bloques usan los sugeridos)
   bloquesDelMes(mes: MesId): Promise<Record<string, Bloque[]>>;
   guardarTurno(cambio: CambioTurno): Promise<void>;
+  // RF18, RF19: cambio de estado del cronograma (la observación del director va como comentario)
+  cambiarEstado(mes: MesId, upss: UpssId, estado: EstadoCronograma, observacion?: string): Promise<void>;
+  // RF03, RF20: respuestas de los trabajadores a sus turnos publicados
+  confirmaciones(mes: MesId): Promise<ConfirmacionTurno[]>;
+  responderTurno(respuesta: ConfirmacionTurno): Promise<void>;
 }
 
-// ponytail: mientras no exista el flujo de aprobación (U7), los meses pasados y el actual se tratan como publicados
-// y los futuros como borrador. Con U7 el estado lo guarda el backend.
+// Estado de un cronograma que todavía no tiene registro: los meses pasados y el actual se consideran publicados
+// (se programaron antes de usar el componente) y los futuros, borrador.
 export const estadoProvisional = (mes: MesId, ahora: Date): EstadoCronograma =>
   mes <= mesDe(ahora) ? 'Publicado' : 'Borrador';
 

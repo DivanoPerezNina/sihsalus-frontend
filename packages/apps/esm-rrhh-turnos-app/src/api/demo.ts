@@ -4,8 +4,8 @@
  */
 import { CODIGOS, type Codigo } from '../domain/catalogos';
 import { finTurno, type Marcacion } from '../domain/asistencia';
-import { diasDelMes, inicioTurno, type Bloque, type MesId, type Programacion } from '../domain/reglas';
-import { estadoProvisional, mesDe, type CambioTurno, type DatosSusalud, type FuenteDatos, type TrabajadorRrhh } from './fuente-datos';
+import { diasDelMes, inicioTurno, type Bloque, type ConfirmacionTurno, type MesId, type Programacion } from '../domain/reglas';
+import { estadoProvisional, mesDe, type CambioTurno, type DatosSusalud, type EstadoCronograma, type FuenteDatos, type TrabajadorRrhh } from './fuente-datos';
 
 const s = (apellidos: string, nombres: string, numDoc: string, colegiatura: string): DatosSusalud => ({
   tipoDoc: 'DNI', numDoc, apellidos, nombres, colegiatura, especialidad: 'SIN ESPECIALIDAD',
@@ -85,9 +85,15 @@ export function marcacionesDemo(
 
 // Cambios guardados durante la sesión del navegador (la demo no persiste: al recargar vuelve al patrón)
 const CAMBIOS = new Map<string, CambioTurno>();
+const ESTADOS = new Map<string, EstadoCronograma>();
+const RESPUESTAS = new Map<string, ConfirmacionTurno>();
 const clave = (mes: MesId, upss: string, workerId: string, dia: number) => `${mes}|${upss}|${workerId}|${dia}`;
 
-export const reiniciarDemo = () => CAMBIOS.clear();
+export const reiniciarDemo = () => {
+  CAMBIOS.clear();
+  ESTADOS.clear();
+  RESPUESTAS.clear();
+};
 
 export function crearFuenteDemo(ahora: () => Date = () => new Date()): FuenteDatos {
   return {
@@ -99,7 +105,14 @@ export function crearFuenteDemo(ahora: () => Date = () => new Date()): FuenteDat
       return p;
     },
     marcaciones: async (desde, hasta) => marcacionesDemo(desde, hasta, ahora()),
-    estadoCronograma: async (mes) => estadoProvisional(mes, ahora()),
+    estadoCronograma: async (mes, upss) => ESTADOS.get(`${mes}|${upss}`) ?? estadoProvisional(mes, ahora()),
+    cambiarEstado: async (mes, upss, estado) => {
+      ESTADOS.set(`${mes}|${upss}`, estado);
+    },
+    confirmaciones: async (mes) => [...RESPUESTAS.values()].filter((r) => r.mes === mes),
+    responderTurno: async (r) => {
+      RESPUESTAS.set(clave(r.mes, r.upss, r.workerId, r.dia), r);
+    },
     bloques: async (mes, upss, workerId, dia): Promise<Bloque[] | undefined> =>
       CAMBIOS.get(clave(mes, upss, workerId, dia))?.bloques,
     bloquesDelMes: async (mes) =>

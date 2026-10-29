@@ -109,3 +109,10 @@
   gap: 1rem;
   max-width: 16rem;
 }
+
+.respuesta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}

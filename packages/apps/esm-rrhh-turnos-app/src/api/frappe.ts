@@ -4,7 +4,8 @@
  */
 import { CODIGOS, type Codigo } from '../domain/catalogos';
 import type { Marcacion } from '../domain/asistencia';
-import type { Bloque, MesId, Programacion } from '../domain/reglas';
+import type { EstadoCronograma } from '../domain/flujo';
+import type { Bloque, Confirmacion, ConfirmacionTurno, MesId, Programacion } from '../domain/reglas';
 import {
   estadoProvisional,
   fechaHoraIso,
@@ -60,20 +61,34 @@ export const upssDeDepartamento = (departamento?: string | null) => (departament
 
 const esCodigo = (x: string): x is Codigo => x in CODIGOS;
 
+const CRONOGRAMA = 'Cronograma Turnos';
+const nombreCronograma = (mes: MesId, upss: string) => `CT-${mes}-${upss}`;
+
 export function crearFuenteFrappe(baseUrl: string, fetchFn: Fetch = (u, i) => fetch(u, i)): FuenteDatos {
   const base = baseUrl.replace(/\/$/, '');
 
   // Con sesión de Frappe (cookie), las escrituras necesitan CSRF salvo que el sitio lo desactive (solo en desarrollo)
   // o que la petición venga con un token Bearer de Keycloak, que es el camino previsto detrás del gateway.
-  async function enviar<T>(ruta: string, cuerpo: unknown): Promise<T> {
+  async function enviar<T>(ruta: string, cuerpo: unknown, method: 'POST' | 'PUT' = 'POST'): Promise<T> {
     const r = await fetchFn(`${base}${ruta}`, {
-      method: 'POST',
+      method,
       credentials: 'include',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(cuerpo),
     });
     if (!r.ok) throw new ErrorFrappe(r.status);
     return (await r.json()) as T;
+  }
+
+  // Un documento por nombre; undefined si no existe
+  async function documento<T>(doctype: string, nombre: string): Promise<T | undefined> {
+    const r = await fetchFn(`${base}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(nombre)}`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    });
+    if (r.status === 404) return undefined;
+    if (!r.ok) throw new ErrorFrappe(r.status);
+    return ((await r.json()) as { data: T }).data;
   }
 
   async function lista<T>(doctype: string, fields: string[], filters: unknown[]): Promise<T[]> {
@@ -175,9 +190,61 @@ export function crearFuenteFrappe(baseUrl: string, fetchFn: Fetch = (u, i) => fe
       }));
     },
 
-    // ponytail: estado provisional hasta el flujo de aprobación (U7)
-    async estadoCronograma(mes: MesId) {
-      return estadoProvisional(mes, new Date());
+    // El estado vive en el DocType propio «Cronograma Turnos» (uno por mes y UPSS); sin registro, el provisional
+    async estadoCronograma(mes: MesId, upss: string) {
+      const doc = await documento<{ estado: EstadoCronograma }>(CRONOGRAMA, nombreCronograma(mes, upss));
+      return doc?.estado ?? estadoProvisional(mes, new Date());
+    },
+
+    async cambiarEstado(mes: MesId, upss: string, estado: EstadoCronograma, observacion?: string) {
+      const nombre = nombreCronograma(mes, upss);
+      const ruta = `/api/resource/${encodeURIComponent(CRONOGRAMA)}`;
+      if (await documento(CRONOGRAMA, nombre)) await enviar(`${ruta}/${encodeURIComponent(nombre)}`, { estado }, 'PUT');
+      else await enviar(ruta, { mes, upss, estado });
+      if (observacion)
+        await enviar('/api/resource/Comment', {
+          comment_type: 'Comment',
+          reference_doctype: CRONOGRAMA,
+          reference_name: nombre,
+          content: `Observación del director: ${observacion}`,
+        });
+    },
+
+    // RF03, RF20: la respuesta del trabajador se guarda en campos del Shift Assignment editables tras el envío
+    async confirmaciones(mes: MesId): Promise<ConfirmacionTurno[]> {
+      const filas = await lista<{
+        employee: string;
+        start_date: string;
+        department?: string | null;
+        sihsalus_confirmacion: Confirmacion;
+        sihsalus_motivo_respuesta?: string | null;
+      }>(
+        'Shift Assignment',
+        ['employee', 'start_date', 'department', 'sihsalus_confirmacion', 'sihsalus_motivo_respuesta'],
+        [
+          ['docstatus', '=', 1],
+          ['start_date', 'like', `${mes}-%`],
+          ['sihsalus_confirmacion', 'is', 'set'],
+        ],
+      );
+      return filas.map((a) => ({
+        mes,
+        upss: upssDeDepartamento(a.department),
+        workerId: a.employee,
+        dia: +a.start_date.slice(8, 10),
+        estado: a.sihsalus_confirmacion,
+        motivo: a.sihsalus_motivo_respuesta ?? undefined,
+      }));
+    },
+
+    async responderTurno(r: ConfirmacionTurno) {
+      const [a] = await asignacionesDelDia(r.workerId, r.dia, r.mes);
+      if (!a) throw new Error('No hay un turno asignado ese día');
+      await enviar(
+        `/api/resource/${encodeURIComponent('Shift Assignment')}/${encodeURIComponent(a.name)}`,
+        { sihsalus_confirmacion: r.estado, sihsalus_motivo_respuesta: r.motivo ?? '' },
+        'PUT',
+      );
     },
 
     // RF26: los bloques SUSALUD se guardan como JSON en el campo personalizado sihsalus_bloques del Shift Assignment

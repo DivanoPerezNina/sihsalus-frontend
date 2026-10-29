@@ -150,3 +150,21 @@ button.celda {
   font-weight: 600;
   color: var(--cds-text-error);
 }
+
+.noAsiste {
+  outline: 2px solid var(--cds-support-error);
+  outline-offset: -2px;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.aviso {
+  font-size: 0.75rem;
+  color: var(--cds-text-error);
+}

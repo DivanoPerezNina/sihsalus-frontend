@@ -56,6 +56,44 @@ describe('Calendario del jefe de UPSS', () => {
   });
 });
 
+describe('Flujo del cronograma (RF18, RF19, RF20)', () => {
+  beforeEach(() => {
+    reiniciarDemo();
+    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED' } });
+    vi.mocked(useSession).mockReturnValue({ authenticated: true, sessionId: 'x', user: { username: 'jefe' } } as never);
+  });
+  const siguienteMes = async () => {
+    await screen.findByRole('region', { name: 'Schedule' });
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }));
+    await waitFor(() => expect(screen.getByTestId('estado-cronograma')).toHaveTextContent('Borrador'));
+  };
+
+  it('el jefe envía a aprobación el cronograma en borrador y ya no puede editarlo', async () => {
+    vi.mocked(userHasAccess).mockImplementation((p) => p !== 'app:home.rrhh.programacion.aprobar');
+    conSWR(<Calendario ahora={AHORA} />);
+    await siguienteMes();
+    expect(screen.getAllByRole('button', { name: /^Raúl Panduro Ríos, / }).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Send for approval' }));
+    await waitFor(() => expect(screen.getByTestId('estado-cronograma')).toHaveTextContent('Enviado a aprobación'));
+    expect(screen.queryAllByRole('button', { name: /^Raúl Panduro Ríos, / })).toHaveLength(0);
+  });
+
+  it('el director aprueba o devuelve con observaciones', async () => {
+    vi.mocked(userHasAccess).mockImplementation((p) => p !== 'app:home.rrhh.programacion.editar');
+    conSWR(<Calendario ahora={AHORA} />);
+    await siguienteMes();
+    expect(screen.queryByRole('button', { name: 'Send for approval' })).not.toBeInTheDocument();
+  });
+
+  it('marca en la matriz los turnos a los que el trabajador respondió que no asistirá', async () => {
+    vi.mocked(userHasAccess).mockReturnValue(true);
+    const { crearFuenteDemo } = await import('../api/demo');
+    await crearFuenteDemo().responderTurno({ mes: '2026-10', upss: 'HOSP', workerId: 'HSC-0001', dia: 20, estado: 'no_asiste', motivo: 'Descanso médico' });
+    conSWR(<Calendario ahora={AHORA} />);
+    expect(await screen.findByRole('button', { name: /^Raúl Panduro Ríos, 20: .* · will not attend: Descanso médico$/ })).toBeInTheDocument();
+  });
+});
+
 describe('Modal del turno: validaciones', () => {
   beforeEach(() => {
     reiniciarDemo();

@@ -20,7 +20,8 @@ import { CODIGOS, type Codigo } from '../domain/catalogos';
 import { PARAMS_DEFECTO, maxGuardiasPorIngreso } from '../domain/parametros';
 import { guardiasMes, horasMes, inicioTurno } from '../domain/reglas';
 import { fechaCorta, horario } from '../formato';
-import { useRolDelMes, useTrabajadorActual } from '../rrhh.resource';
+import { useConfirmaciones, useEstadoCronograma, useRolDelMes, useTrabajadorActual } from '../rrhh.resource';
+import RespuestaTurno from './respuesta-turno.component';
 import styles from '../root.scss';
 import SelectorMes from '../selector-mes.component';
 
@@ -38,6 +39,8 @@ export default function MisTurnos({ ahora: ahoraProp }: { ahora?: Date }) {
   const [mes, setMes] = useState(mesDe(ahora));
   const { trabajador, isLoading: cargandoTrabajador, error: errorTrabajador } = useTrabajadorActual();
   const { data: rol, isLoading: cargandoRol, error: errorRol } = useRolDelMes(mes);
+  const estado = useEstadoCronograma(mes, trabajador?.upss ?? '');
+  const respuestas = useConfirmaciones(mes);
 
   const dias = useMemo(() => {
     if (!trabajador || !rol) return [];
@@ -117,6 +120,7 @@ export default function MisTurnos({ ahora: ahoraProp }: { ahora?: Date }) {
               <TableHeader>{t('codigo', 'Code')}</TableHeader>
               <TableHeader>{t('turno', 'Shift')}</TableHeader>
               <TableHeader>{t('horario', 'Hours')}</TableHeader>
+              <TableHeader>{t('respuesta', 'Your answer')}</TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -130,6 +134,12 @@ export default function MisTurnos({ ahora: ahoraProp }: { ahora?: Date }) {
                 </TableCell>
                 <TableCell>{CODIGOS[x.codigo].nombre}</TableCell>
                 <TableCell>{horario(x.codigo)}</TableCell>
+                <TableCell>
+                  {CODIGOS[x.codigo].horas > 0 && (
+                    <RespuestaTurno mes={mes} upss={trabajador.upss} workerId={trabajador.id} dia={x.dia} codigo={x.codigo}
+                      publicado={estado.data === 'Publicado'} respuestas={respuestas.data ?? []} ahora={ahora} />
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
