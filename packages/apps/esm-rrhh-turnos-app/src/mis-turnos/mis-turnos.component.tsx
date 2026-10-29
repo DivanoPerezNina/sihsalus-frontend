@@ -32,6 +32,24 @@ const TIPO_TAG: Record<string, 'blue' | 'purple' | 'gray' | 'green'> = {
   licencia: 'green',
 };
 
+// ponytail: "visto" vive en el navegador (localStorage); si no está disponible, el aviso simplemente vuelve a salir.
+// Cuando el equipo defina el canal de notificaciones (RF13, RF14), el aviso llegará también fuera del componente.
+function leerVisto(clave: string) {
+  try {
+    return localStorage.getItem(clave) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function marcarVisto(clave: string) {
+  try {
+    localStorage.setItem(clave, '1');
+  } catch {
+    // sin almacenamiento local: no pasa nada
+  }
+}
+
 // RF04, RF15: rol del mes del trabajador que inició sesión y su próximo turno
 export default function MisTurnos({ ahora: ahoraProp }: { ahora?: Date }) {
   const [ahora] = useState(() => ahoraProp ?? new Date());
@@ -41,6 +59,7 @@ export default function MisTurnos({ ahora: ahoraProp }: { ahora?: Date }) {
   const { data: rol, isLoading: cargandoRol, error: errorRol } = useRolDelMes(mes);
   const estado = useEstadoCronograma(mes, trabajador?.upss ?? '');
   const respuestas = useConfirmaciones(mes);
+  const [visto, setVisto] = useState<Set<string>>(new Set());
 
   const dias = useMemo(() => {
     if (!trabajador || !rol) return [];
@@ -81,6 +100,12 @@ export default function MisTurnos({ ahora: ahoraProp }: { ahora?: Date }) {
     return fin && fin > ahora;
   });
   const inicioProximo = proximo && inicioTurno(mes, proximo.dia, proximo.codigo);
+  // RF15: recordatorio si el próximo turno empieza dentro del plazo configurado
+  const pronto =
+    inicioProximo && inicioProximo > ahora && inicioProximo.getTime() - ahora.getTime() <= PARAMS_DEFECTO.recordatorioHoras * 3_600_000;
+  // RF13: aviso de rol publicado, hasta que el trabajador lo marque como visto en este equipo
+  const clavePublicado = `rrhh-turnos:visto:${trabajador.id}:${mes}`;
+  const avisoPublicado = estado.data === 'Publicado' && dias.length > 0 && !visto.has(clavePublicado) && !leerVisto(clavePublicado);
 
   return (
     <div className={styles.seccion}>
@@ -88,6 +113,21 @@ export default function MisTurnos({ ahora: ahoraProp }: { ahora?: Date }) {
         {trabajador.nombre} · {trabajador.upss}
       </p>
       <SelectorMes mes={mes} onChange={setMes} />
+
+      {pronto && proximo && inicioProximo && (
+        <InlineNotification kind="warning" lowContrast hideCloseButton data-testid="recordatorio"
+          title={t('recordatorio', 'Your next shift starts soon')}
+          subtitle={`${fechaCorta(inicioProximo, i18n.language)} · ${CODIGOS[proximo.codigo].nombre} ${horario(proximo.codigo)}`} />
+      )}
+      {avisoPublicado && (
+        <InlineNotification kind="info" lowContrast data-testid="aviso-publicado"
+          title={t('rolPublicado', 'Your schedule for this month has been published')}
+          subtitle={t('rolPublicadoTexto', 'Check your shifts and confirm them, or tell your head of unit if you cannot attend.')}
+          onClose={() => {
+            marcarVisto(clavePublicado);
+            setVisto(new Set([...visto, clavePublicado]));
+          }} />
+      )}
 
       <div className={styles.resumen}>
         <Tile>

@@ -59,6 +59,13 @@ describe('Gestión de turnos con la fuente demo', () => {
     expect(screen.getByTestId('proximo-turno')).not.toHaveTextContent('No upcoming shifts');
   });
 
+  it('Mis turnos: recuerda el próximo turno y avisa que el rol se publicó (RF13, RF15)', async () => {
+    localStorage.clear();
+    conSWR(<MisTurnos ahora={new Date(2026, 9, 15, 20, 0)} />); // 15 oct, 20:00: el siguiente turno de Carmen es al día siguiente
+    expect(await screen.findByTestId('recordatorio')).toBeInTheDocument();
+    expect(screen.getByTestId('aviso-publicado')).toBeInTheDocument();
+  });
+
   it('Mis turnos: reconoce al usuario vinculado', async () => {
     mockUseSession.mockReturnValue({ authenticated: true, sessionId: 'x', user: { username: 'prengifo' } } as never);
     conSWR(<MisTurnos ahora={AHORA} />);

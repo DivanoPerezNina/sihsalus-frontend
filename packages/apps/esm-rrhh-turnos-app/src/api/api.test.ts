@@ -4,7 +4,7 @@ import { cruces, guardiasMes, horasMes } from '../domain/reglas';
 import { turnosConAsistencia } from '../domain/asistencia';
 import { TRABAJADORES_DEMO, marcacionesDemo, rolDemo } from './demo';
 import { crearFuenteFrappe, upssDeDepartamento } from './frappe';
-import { leerFechaHora, mesVecino, rangoMarcaciones } from './fuente-datos';
+import { estadoGlobal, leerFechaHora, mesVecino, rangoMarcaciones } from './fuente-datos';
 
 describe('fuente demo', () => {
   const mes = '2026-10';
@@ -197,8 +197,7 @@ describe('fuente Frappe HR', () => {
 });
 
 describe('estado de sincronización (RF12)', () => {
-  it('el estado global es error si algún evento falló, pendiente si alguno espera y ok en otro caso', async () => {
-    const { estadoGlobal } = await import('../sincronizacion/sincronizacion.component');
+  it('el estado global es error si algún evento falló, pendiente si alguno espera y ok en otro caso', () => {
     const e = (estado: 'ok' | 'pendiente' | 'error') => ({ fecha: new Date(), flujo: 'F1', descripcion: '', estado, intentos: 0 });
     expect(estadoGlobal([e('ok'), e('error'), e('pendiente')])).toBe('error');
     expect(estadoGlobal([e('ok'), e('pendiente')])).toBe('pendiente');

@@ -51,6 +51,10 @@ export interface EventoSync {
   intentos: number;
 }
 
+// Estado global: error si algún evento falló, pendiente si alguno espera, ok en otro caso
+export const estadoGlobal = (eventos: readonly EventoSync[]): EventoSync['estado'] =>
+  eventos.some((e) => e.estado === 'error') ? 'error' : eventos.some((e) => e.estado === 'pendiente') ? 'pendiente' : 'ok';
+
 export interface FuenteDatos {
   trabajadores(): Promise<TrabajadorRrhh[]>;
   rolDelMes(mes: MesId): Promise<Programacion>;

@@ -11,16 +11,13 @@ import {
 } from '@carbon/react';
 import { useTranslation } from 'react-i18next';
 
-import type { EventoSync } from '../api/fuente-datos';
+import { estadoGlobal, type EventoSync } from '../api/fuente-datos';
 import { moduleName } from '../constants';
 import { fechaCorta, hora } from '../formato';
 import { useEventosSync } from '../rrhh.resource';
 import styles from '../root.scss';
 
 const TAG: Record<EventoSync['estado'], 'green' | 'gray' | 'red'> = { ok: 'green', pendiente: 'gray', error: 'red' };
-
-export const estadoGlobal = (eventos: readonly EventoSync[]): EventoSync['estado'] =>
-  eventos.some((e) => e.estado === 'error') ? 'error' : eventos.some((e) => e.estado === 'pendiente') ? 'pendiente' : 'ok';
 
 // RF11, RF12: estado de la sincronización entre SIH SALUS (OpenMRS) y Frappe HR
 export default function Sincronizacion() {
