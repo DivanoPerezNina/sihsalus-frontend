@@ -1,5 +1,5 @@
 import { ActionableNotification, DataTableSkeleton, InlineNotification, Modal, Select, SelectItem, Tag, TextArea } from '@carbon/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { mesDe, mesVecino, type TrabajadorRrhh } from '../api/fuente-datos';
@@ -47,7 +47,11 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
   // RF18: quien aprueba ve primero lo que tiene pendiente; el jefe, su propia UPSS
   const estados = useEstadosCronograma(mes, listaUpss);
   const porAprobar = programacionAprobar ? listaUpss.filter((u) => estados.data?.[u] === 'Enviado a aprobación') : [];
-  const upss = upssElegida || porAprobar[0] || actual?.upss || listaUpss[0] || '';
+  const propuesta = porAprobar[0] || actual?.upss || listaUpss[0] || '';
+  const upss = upssElegida || propuesta;
+  useEffect(() => {
+    if (!upssElegida && propuesta && !estados.isLoading) setUpss(propuesta);
+  }, [upssElegida, propuesta, estados.isLoading]);
   const estado = useEstadoCronograma(mes, upss);
 
   // Personal propio de la UPSS más quienes vienen de apoyo desde otra UPSS

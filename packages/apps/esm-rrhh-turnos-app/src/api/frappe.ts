@@ -121,6 +121,9 @@ export function crearFuenteFrappe(baseUrl: string, opciones: OpcionesFrappe = {}
     return (await leer<T[]>(`${recurso(doctype)}?${q}`)) ?? [];
   }
 
+  const primero = async <T>(doctype: string, nombre: string, fields: string[] = ['name']): Promise<T | undefined> =>
+    (await lista<T>(doctype, fields, [['name', '=', nombre]]))[0];
+
   const asignacionesDelDia = (workerId: string, dia: number, mes: MesId) =>
     lista<AsignacionFrappe>(
       'Shift Assignment',
@@ -211,8 +214,8 @@ export function crearFuenteFrappe(baseUrl: string, opciones: OpcionesFrappe = {}
         'Shift Assignment',
         ['employee', 'shift_type', 'start_date', 'end_date', 'department'],
         [
+          // Enviadas y no canceladas. No se filtra por status: Frappe HR pasa a «Inactive» las de periodos pasados
           ['docstatus', '=', 1],
-          ['status', '=', 'Active'],
           ['start_date', '<=', fechaIso(ultimo)],
         ],
         // Las asignaciones sin fecha de fin (creadas a mano en Frappe HR) siguen vigentes
@@ -250,13 +253,13 @@ export function crearFuenteFrappe(baseUrl: string, opciones: OpcionesFrappe = {}
 
     // Sin registro, el estado provisional (meses anteriores al uso del componente)
     async estadoCronograma(mes: MesId, upss: string) {
-      const doc = await leer<{ estado: EstadoCronograma }>(recurso(CRONOGRAMA, nombreCronograma(mes, upss)));
+      const doc = await primero<{ estado: EstadoCronograma }>(CRONOGRAMA, nombreCronograma(mes, upss), ['estado']);
       return doc?.estado ?? estadoProvisional(mes, new Date());
     },
 
     async cambiarEstado(mes: MesId, upss: string, estado: EstadoCronograma, observacion?: string) {
       const nombre = nombreCronograma(mes, upss);
-      if (await leer(recurso(CRONOGRAMA, nombre))) await enviar(recurso(CRONOGRAMA, nombre), { estado }, 'PUT');
+      if (await primero(CRONOGRAMA, nombre)) await enviar(recurso(CRONOGRAMA, nombre), { estado }, 'PUT');
       else await enviar(recurso(CRONOGRAMA), { mes, upss, estado });
       await registrar({ accion: 'estado', mes, upss, detalle: estado, motivo: observacion });
     },
@@ -311,7 +314,7 @@ export function crearFuenteFrappe(baseUrl: string, opciones: OpcionesFrappe = {}
       });
     },
 
-    // RF03, RF20: la respuesta del trabajador va en campos del Shift Assignment editables tras el envío
+    // RF03, RF20: la respuesta del trabajador se guarda en campos del Shift Assignment
     async confirmaciones(mes: MesId): Promise<ConfirmacionTurno[]> {
       const filas = await lista<AsignacionFrappe>(
         'Shift Assignment',
@@ -335,7 +338,9 @@ export function crearFuenteFrappe(baseUrl: string, opciones: OpcionesFrappe = {}
     async responderTurno(r: ConfirmacionTurno) {
       const [a] = await asignacionesDelDia(r.workerId, r.dia, r.mes);
       if (!a) throw new Error('No hay un turno asignado ese día');
-      await enviar(recurso('Shift Assignment', a.name), { sihsalus_confirmacion: r.estado, sihsalus_motivo_respuesta: r.motivo ?? '' }, 'PUT');
+      // El trabajador no tiene permiso de escritura sobre las asignaciones: lo hace un método del servidor
+      // (Server Script sihsalus_responder_turno) que verifica que el turno es de quien inició sesión.
+      await enviar(`${base}/api/method/sihsalus_responder_turno`, { asignacion: a.name, estado: r.estado, motivo: r.motivo ?? '' });
     },
 
     async eventosSync(): Promise<EventoSync[]> {
@@ -408,7 +413,7 @@ export function crearFuenteFrappe(baseUrl: string, opciones: OpcionesFrappe = {}
 
     async guardarEjecutado(c: CambioEjecutado) {
       const nombre = `TE-${c.mes}-${c.upss}-${c.workerId}-${c.dia}`;
-      if (await leer(recurso('Turno Ejecutado', nombre))) await enviar(recurso('Turno Ejecutado', nombre), { codigo: c.codigo }, 'PUT');
+      if (await primero('Turno Ejecutado', nombre)) await enviar(recurso('Turno Ejecutado', nombre), { codigo: c.codigo }, 'PUT');
       else await enviar(recurso('Turno Ejecutado'), { mes: c.mes, upss: c.upss, employee: c.workerId, dia: c.dia, codigo: c.codigo });
       await registrar({ accion: 'ejecutado', mes: c.mes, upss: c.upss, workerId: c.workerId, dia: c.dia, detalle: c.codigo, motivo: c.motivo });
     },

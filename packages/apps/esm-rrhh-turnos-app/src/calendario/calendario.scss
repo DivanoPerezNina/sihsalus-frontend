@@ -69,7 +69,7 @@
 }
 
 .festivo {
-  color: var(--cds-text-error);
+  color: var(--cds-text-error, #da1e28);
 }
 
 .celda {
@@ -118,7 +118,7 @@ button.celda {
 
 .alerta {
   font-weight: 600;
-  color: var(--cds-text-error);
+  color: var(--cds-text-error, #da1e28);
 }
 
 .leyenda {
@@ -155,12 +155,13 @@ button.celda {
 
 .horasBajas {
   font-weight: 600;
-  color: var(--cds-text-error);
+  color: var(--cds-text-error, #da1e28);
 }
 
 .marcada {
-  outline: 2px solid var(--cds-support-error);
-  outline-offset: -2px;
+  /* sombra interior: con bordes colapsados, un outline queda tapado por las celdas vecinas */
+  box-shadow: inset 0 0 0 2px var(--cds-support-error, #da1e28);
+  font-weight: 600;
 }
 
 .acciones {
@@ -173,7 +174,7 @@ button.celda {
 
 .aviso {
   font-size: 0.75rem;
-  color: var(--cds-text-error);
+  color: var(--cds-text-error, #da1e28);
 }
 
 .ficha {

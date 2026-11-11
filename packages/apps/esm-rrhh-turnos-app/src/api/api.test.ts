@@ -91,6 +91,14 @@ describe('fuente Frappe HR', () => {
     expect(JSON.parse(url.searchParams.get('filters') ?? '')).toEqual([['status', '=', 'Active']]);
   });
 
+  it('pide el rol sin filtrar por status, para incluir las asignaciones que Frappe HR ya pasó a Inactive', async () => {
+    const fetchFn = vi.fn(async (_url: string) => respuesta([]));
+    await crearFuenteFrappe('/rrhh', { fetchFn }).rolDelMes('2026-10');
+    const filtros = new URL(fetchFn.mock.calls[0][0], 'http://x').searchParams.get('filters') ?? '';
+    expect(filtros).toContain('docstatus');
+    expect(filtros).not.toContain('status","=","Active');
+  });
+
   it('expande las asignaciones de turno a días del mes e ignora los tipos que no son códigos', async () => {
     const fetchFn = vi.fn(async (_url: string) =>
       respuesta([
@@ -164,8 +172,8 @@ describe('fuente Frappe HR', () => {
     const metodos: string[] = [];
     let existe = false;
     const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
-      metodos.push(`${init?.method ?? 'GET'} ${decodeURIComponent(url)}`);
-      if (!init?.method && url.includes('CT-2026-11-HOSP')) return existe ? respuesta({ estado: 'Enviado a aprobación' }) : respuesta(null, 404);
+      metodos.push(`${init?.method ?? 'GET'} ${decodeURIComponent(url).split('?')[0]}`);
+      if (!init?.method) return respuesta(existe ? [{ name: 'CT-2026-11-HOSP', estado: 'Enviado a aprobación' }] : []);
       return respuesta({});
     });
     const f = crearFuenteFrappe('/rrhh', { fetchFn });
@@ -173,10 +181,10 @@ describe('fuente Frappe HR', () => {
     existe = true;
     await f.cambiarEstado('2026-11', 'HOSP', 'Borrador', 'Falta cubrir el 12');
     expect(metodos).toEqual([
-      'GET /rrhh/api/resource/Cronograma Turnos/CT-2026-11-HOSP',
+      'GET /rrhh/api/resource/Cronograma Turnos',
       'POST /rrhh/api/resource/Cronograma Turnos',
       'POST /rrhh/api/resource/Bitacora Turnos',
-      'GET /rrhh/api/resource/Cronograma Turnos/CT-2026-11-HOSP',
+      'GET /rrhh/api/resource/Cronograma Turnos',
       'PUT /rrhh/api/resource/Cronograma Turnos/CT-2026-11-HOSP',
       'POST /rrhh/api/resource/Bitacora Turnos',
     ]);
@@ -191,9 +199,9 @@ describe('fuente Frappe HR', () => {
     });
     await crearFuenteFrappe('/rrhh', { fetchFn }).responderTurno({ mes: '2026-11', upss: 'HOSP', workerId: 'E1', dia: 3, estado: 'no_asiste', motivo: 'Licencia' });
     expect(llamadas[1]).toEqual({
-      url: '/rrhh/api/resource/Shift Assignment/HR-SHA-9',
-      metodo: 'PUT',
-      cuerpo: { sihsalus_confirmacion: 'no_asiste', sihsalus_motivo_respuesta: 'Licencia' },
+      url: '/rrhh/api/method/sihsalus_responder_turno',
+      metodo: 'POST',
+      cuerpo: { asignacion: 'HR-SHA-9', estado: 'no_asiste', motivo: 'Licencia' },
     });
   });
 
