@@ -18,7 +18,7 @@ import useSWR from 'swr';
 import type { EstadoCronograma, TrabajadorRrhh } from '../api/fuente-datos';
 import { moduleName } from '../constants';
 import { CODIGOS, SERVICIOS_SUSALUD, type Codigo, type ServicioSusalud } from '../domain/catalogos';
-import { PARAMS_DEFECTO, maxGuardiasPorIngreso } from '../domain/parametros';
+import { maxGuardiasPorIngreso } from '../domain/parametros';
 import {
   bloquesPorDefecto,
   cruces,
@@ -28,15 +28,17 @@ import {
   horasBloques,
   horasMes,
   serviciosRepetidos,
+  yaInicio,
+  diasDelMes,
   type Bloque,
   type MesId,
   type Programacion,
 } from '../domain/reglas';
 import { fechaCorta } from '../formato';
-import { useFuenteDatos, useGuardarTurno } from '../rrhh.resource';
+import { useFuenteDatos, useGuardarTurno, useParametros } from '../rrhh.resource';
 import styles from './calendario.scss';
 
-const GRUPOS: { clave: string; texto: string; codigos: Codigo[] }[] = [
+export const GRUPOS_CODIGOS: { clave: string; texto: string; codigos: Codigo[] }[] = [
   { clave: 'grupoTurnos', texto: 'Shifts', codigos: ['M', 'T', 'APS'] },
   { clave: 'grupoGuardias', texto: 'Guard shifts', codigos: ['GDO', 'GNO', 'GDDF', 'GNDF'] },
   { clave: 'grupoDescanso', texto: 'Rest', codigos: ['L', 'DOM', 'FE'] },
@@ -55,20 +57,23 @@ interface Props {
   dia: number;
   rol: Programacion;
   estado: EstadoCronograma;
+  ahora: Date;
   onClose: () => void;
 }
 
 // RF01, RF02, RF21, RF23, RF25, RF26, RF29, RF30
-export default function ModalTurno({ mes, upss, trabajador: w, dia, rol, estado, onClose }: Props) {
+export default function ModalTurno({ mes, upss, trabajador: w, dia, rol, estado, ahora, onClose }: Props) {
   const { t, i18n } = useTranslation(moduleName);
   const { fuente, clave } = useFuenteDatos();
   const guardarTurno = useGuardarTurno();
+  const params = useParametros();
   const actual: Codigo | undefined = rol[mes]?.[upss]?.[w.id]?.[dia];
   const tieneTurno = Boolean(actual && CODIGOS[actual].horas > 0);
   const publicado = estado === 'Publicado';
   const prof = { profesion: w.profesion ?? '' };
 
   const [codigo, setCodigo] = useState<Codigo>(actual && tieneTurno ? actual : 'M');
+  const [destino, setDestino] = useState(dia); // RF02: mover el turno a otra fecha
   const [bloques, setBloques] = useState<Bloque[]>(() => bloquesPorDefecto(prof, upss, codigo));
   const [motivo, setMotivo] = useState('');
   const [detalle, setDetalle] = useState('');
@@ -82,15 +87,22 @@ export default function ModalTurno({ mes, upss, trabajador: w, dia, rol, estado,
   });
 
   const trabaja = CODIGOS[codigo].horas > 0;
-  const listaCruces = trabaja ? cruces(rol, mes, w.id, upss, dia, codigo) : [];
-  const tope = maxGuardiasPorIngreso(w.anioIngreso);
-  const guardiasSinEste = guardiasMes(rol, mes, w.id) - (actual && esGuardia(actual) ? 1 : 0);
+  // Al mover, se valida contra el rol sin el turno original
+  const moviendo = destino !== dia;
+  const { [dia]: _original, ...restoDelRol } = rol[mes]?.[upss]?.[w.id] ?? {};
+  const base: Programacion = moviendo ? { ...rol, [mes]: { ...rol[mes], [upss]: { ...rol[mes]?.[upss], [w.id]: restoDelRol } } } : rol;
+  const enDestino: Codigo | undefined = base[mes]?.[upss]?.[w.id]?.[destino];
+  const ocupado = moviendo && Boolean(enDestino && CODIGOS[enDestino].horas > 0);
+  const listaCruces = trabaja ? cruces(base, mes, w.id, upss, destino, codigo) : [];
+  const tope = maxGuardiasPorIngreso(w.anioIngreso, params);
+  const guardiasSinEste = guardiasMes(base, mes, w.id) - (enDestino && esGuardia(enDestino) ? 1 : 0);
   const excedeTope = esGuardia(codigo) && guardiasSinEste >= tope;
-  const horasResultantes = horasMes(rol, mes, w.id) - (actual ? CODIGOS[actual].horas : 0) + CODIGOS[codigo].horas;
+  const horasResultantes = horasMes(base, mes, w.id) - (enDestino ? CODIGOS[enDestino].horas : 0) + CODIGOS[codigo].horas;
+  const diasDisponibles = diasDelMes(mes).filter((d) => d.d === dia || !yaInicio(mes, d.d, 'L', ahora));
   const bloquesCruzados = crucesEntreBloques(bloques);
   const repetidos = serviciosRepetidos(bloques);
   const sumaBloques = horasBloques(bloques);
-  const bloqueado = listaCruces.length > 0 || excedeTope || (trabaja && (bloques.length === 0 || bloquesCruzados.size > 0));
+  const bloqueado = ocupado || listaCruces.length > 0 || excedeTope || (trabaja && (bloques.length === 0 || bloquesCruzados.size > 0));
   const faltaMotivo = publicado && !motivo;
   const fecha = fechaCorta(new Date(+mes.slice(0, 4), +mes.slice(5) - 1, dia), i18n.language);
 
@@ -108,7 +120,10 @@ export default function ModalTurno({ mes, upss, trabajador: w, dia, rol, estado,
     setErrorGuardar(false);
     try {
       const textoMotivo = motivo ? [t(`motivo_${motivo}`), detalle.trim()].filter(Boolean).join(': ') : undefined;
-      await guardarTurno({ mes, upss, workerId: w.id, dia, codigo: c, bloques: CODIGOS[c].horas > 0 ? bloques : [], motivo: textoMotivo });
+      // Mover = liberar el día original y crear el turno en la fecha nueva
+      if (moviendo && c === codigo) await guardarTurno({ mes, upss, workerId: w.id, dia, codigo: 'L', bloques: [], motivo: textoMotivo });
+      const diaFinal = c === codigo ? destino : dia;
+      await guardarTurno({ mes, upss, workerId: w.id, dia: diaFinal, codigo: c, bloques: CODIGOS[c].horas > 0 ? bloques : [], motivo: textoMotivo });
       onClose();
     } catch {
       setErrorGuardar(true);
@@ -138,6 +153,10 @@ export default function ModalTurno({ mes, upss, trabajador: w, dia, rol, estado,
                 tope,
               })}
             />
+          )}
+          {ocupado && enDestino && (
+            <InlineNotification kind="error" lowContrast hideCloseButton title={t('errorDiaOcupado', 'That day already has a shift')}
+              subtitle={t('errorDiaOcupadoTexto', 'Day {{dia}} already has {{codigo}}. Edit that shift directly.', { dia: destino, codigo: enDestino })} />
           )}
           {listaCruces.length > 0 && (
             <InlineNotification
@@ -185,9 +204,21 @@ export default function ModalTurno({ mes, upss, trabajador: w, dia, rol, estado,
           )}
         </div>
 
+        {w.practitionerId && (
+          <p className={styles.ficha} data-testid="practitioner">
+            FHIR: Practitioner/{w.practitionerId}
+          </p>
+        )}
+        {tieneTurno && (
+          <Select id="fecha" labelText={t('fechaDelTurno', 'Shift date (change it to move the shift)')} value={destino} onChange={(e) => setDestino(+e.target.value)}>
+            {diasDisponibles.map((d) => (
+              <SelectItem key={d.d} value={d.d} text={fechaCorta(new Date(+mes.slice(0, 4), +mes.slice(5) - 1, d.d), i18n.language)} />
+            ))}
+          </Select>
+        )}
         <Select id="codigo" labelText={t('codigoDelRol', 'Roster code')} value={codigo} onChange={(e) => elegir(e.target.value as Codigo)}
           helperText={`${CODIGOS[codigo].nombre} · ${CODIGOS[codigo].horas} h`}>
-          {GRUPOS.map((g) => (
+          {GRUPOS_CODIGOS.map((g) => (
             <SelectItemGroup key={g.clave} label={t(g.clave, g.texto)}>
               {g.codigos.map((c) => (
                 <SelectItem key={c} value={c} text={`${c} · ${CODIGOS[c].nombre}`} />
@@ -224,9 +255,9 @@ export default function ModalTurno({ mes, upss, trabajador: w, dia, rol, estado,
           </fieldset>
         )}
 
-        <p className={horasResultantes < PARAMS_DEFECTO.horasMinimasMes ? styles.horasBajas : styles.horas} data-testid="horas-resultantes">
+        <p className={horasResultantes < params.horasMinimasMes ? styles.horasBajas : styles.horas} data-testid="horas-resultantes">
           {t('horasResultantes', 'With this change: {{horas}} h this month', { horas: horasResultantes })}
-          {horasResultantes < PARAMS_DEFECTO.horasMinimasMes && ` (${t('menosDelMinimo', 'below {{minimo}} h', { minimo: PARAMS_DEFECTO.horasMinimasMes })})`}
+          {horasResultantes < params.horasMinimasMes && ` (${t('menosDelMinimo', 'below {{minimo}} h', { minimo: params.horasMinimasMes })})`}
         </p>
 
         {publicado && (

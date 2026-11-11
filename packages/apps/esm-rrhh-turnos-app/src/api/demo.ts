@@ -5,7 +5,17 @@
 import { CODIGOS, type Codigo } from '../domain/catalogos';
 import { finTurno, type Marcacion } from '../domain/asistencia';
 import { diasDelMes, inicioTurno, type Bloque, type ConfirmacionTurno, type MesId, type Programacion } from '../domain/reglas';
-import { estadoProvisional, mesDe, type CambioTurno, type DatosSusalud, type EstadoCronograma, type FuenteDatos, type TrabajadorRrhh } from './fuente-datos';
+import { PARAMS_DEFECTO, type Parametros } from '../domain/parametros';
+import {
+  estadoProvisional,
+  mesDe,
+  type CambioTurno,
+  type DatosSusalud,
+  type EntradaBitacora,
+  type EstadoCronograma,
+  type FuenteDatos,
+  type TrabajadorRrhh,
+} from './fuente-datos';
 
 const s = (apellidos: string, nombres: string, numDoc: string, colegiatura: string): DatosSusalud => ({
   tipoDoc: 'DNI', numDoc, apellidos, nombres, colegiatura, especialidad: 'SIN ESPECIALIDAD',
@@ -32,6 +42,11 @@ export function azar(semilla: string): number {
   for (let i = 0; i < semilla.length; i++) h = Math.imul(h ^ semilla.charCodeAt(i), 16777619);
   return (h >>> 0) / 2 ** 32;
 }
+
+const CONDICIONES = ['Nombrado', 'CAS', 'RECAS'];
+TRABAJADORES_DEMO.forEach((w, i) => {
+  w.condicion = CONDICIONES[i % 3];
+});
 
 export function rolDemo(mes: MesId, trabajadores: readonly TrabajadorRrhh[] = TRABAJADORES_DEMO): Programacion {
   const p: Programacion = { [mes]: {} };
@@ -87,16 +102,57 @@ export function marcacionesDemo(
 const CAMBIOS = new Map<string, CambioTurno>();
 const ESTADOS = new Map<string, EstadoCronograma>();
 const RESPUESTAS = new Map<string, ConfirmacionTurno>();
+const EJECUTADO = new Map<string, { mes: MesId; upss: string; workerId: string; dia: number; codigo: Codigo }>();
+const BITACORA: EntradaBitacora[] = [];
+let PARAMETROS: Parametros = { ...PARAMS_DEFECTO };
+let ACCESO_HASTA: Date | undefined;
 const clave = (mes: MesId, upss: string, workerId: string, dia: number) => `${mes}|${upss}|${workerId}|${dia}`;
 
 export const reiniciarDemo = () => {
   CAMBIOS.clear();
   ESTADOS.clear();
   RESPUESTAS.clear();
+  EJECUTADO.clear();
+  BITACORA.length = 0;
+  PARAMETROS = { ...PARAMS_DEFECTO };
+  ACCESO_HASTA = undefined;
 };
 
-export function crearFuenteDemo(ahora: () => Date = () => new Date()): FuenteDatos {
+export interface OpcionesDemo {
+  ahora?: () => Date;
+  usuario?: string;
+  enRed?: boolean; // simula estar dentro o fuera de la red del hospital (RNF09)
+}
+
+export function crearFuenteDemo({ ahora = () => new Date(), usuario = 'demo', enRed = true }: OpcionesDemo = {}): FuenteDatos {
+  const registrar = (e: Omit<EntradaBitacora, 'fecha' | 'usuario'>) => {
+    BITACORA.unshift({ ...e, fecha: ahora(), usuario });
+  };
   return {
+    parametros: async () => PARAMETROS,
+    guardarParametros: async (p, motivo) => {
+      const cambios = (Object.keys(p) as (keyof Parametros)[]).filter((k) => p[k] !== PARAMETROS[k]);
+      registrar({ accion: 'parametros', detalle: cambios.map((k) => `${k}: ${PARAMETROS[k]} → ${p[k]}`).join('; '), motivo });
+      PARAMETROS = { ...p };
+    },
+    bitacora: async (filtro = {}) => BITACORA.filter((b) => !filtro.workerId || b.workerId === filtro.workerId),
+    ejecutado: async (mes) => {
+      const p: Programacion = { [mes]: {} };
+      for (const e of EJECUTADO.values())
+        if (e.mes === mes) p[mes][e.upss] = { ...p[mes][e.upss], [e.workerId]: { ...p[mes][e.upss]?.[e.workerId], [e.dia]: e.codigo } };
+      return p;
+    },
+    guardarEjecutado: async (c) => {
+      EJECUTADO.set(clave(c.mes, c.upss, c.workerId, c.dia), c);
+      registrar({ accion: 'ejecutado', mes: c.mes, upss: c.upss, workerId: c.workerId, dia: c.dia, detalle: c.codigo, motivo: c.motivo });
+    },
+    enRedHospital: async () => enRed,
+    accesoExcepcionalHasta: async () => (ACCESO_HASTA && ACCESO_HASTA > ahora() ? ACCESO_HASTA : undefined),
+    solicitarAcceso: async (motivo, minutos) => {
+      ACCESO_HASTA = new Date(ahora().getTime() + minutos * 60_000);
+      registrar({ accion: 'acceso_excepcional', detalle: `${minutos} min`, motivo });
+      return ACCESO_HASTA;
+    },
     trabajadores: async () => TRABAJADORES_DEMO,
     rolDelMes: async (mes) => {
       const p = rolDemo(mes);
@@ -106,8 +162,9 @@ export function crearFuenteDemo(ahora: () => Date = () => new Date()): FuenteDat
     },
     marcaciones: async (desde, hasta) => marcacionesDemo(desde, hasta, ahora()),
     estadoCronograma: async (mes, upss) => ESTADOS.get(`${mes}|${upss}`) ?? estadoProvisional(mes, ahora()),
-    cambiarEstado: async (mes, upss, estado) => {
+    cambiarEstado: async (mes, upss, estado, observacion) => {
       ESTADOS.set(`${mes}|${upss}`, estado);
+      registrar({ accion: 'estado', mes, upss, detalle: estado, motivo: observacion });
     },
     confirmaciones: async (mes) => [...RESPUESTAS.values()].filter((r) => r.mes === mes),
     eventosSync: async () => {
@@ -126,6 +183,7 @@ export function crearFuenteDemo(ahora: () => Date = () => new Date()): FuenteDat
       Object.fromEntries([...CAMBIOS.values()].filter((c) => c.mes === mes && c.bloques.length).map((c) => [`${c.upss}|${c.workerId}|${c.dia}`, c.bloques])),
     guardarTurno: async (c) => {
       CAMBIOS.set(clave(c.mes, c.upss, c.workerId, c.dia), c);
+      registrar({ accion: 'turno', mes: c.mes, upss: c.upss, workerId: c.workerId, dia: c.dia, detalle: `→ ${c.codigo}`, motivo: c.motivo });
     },
   };
 }

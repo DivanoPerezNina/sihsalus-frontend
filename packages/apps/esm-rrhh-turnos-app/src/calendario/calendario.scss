@@ -151,7 +151,7 @@ button.celda {
   color: var(--cds-text-error);
 }
 
-.noAsiste {
+.marcada {
   outline: 2px solid var(--cds-support-error);
   outline-offset: -2px;
 }
@@ -167,4 +167,10 @@ button.celda {
 .aviso {
   font-size: 0.75rem;
   color: var(--cds-text-error);
+}
+
+.ficha {
+  margin: 0 0 1rem;
+  font-size: 0.75rem;
+  color: var(--cds-text-secondary);
 }

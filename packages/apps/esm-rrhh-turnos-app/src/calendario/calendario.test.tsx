@@ -11,12 +11,18 @@ import ModalTurno from './modal-turno.component';
 const conSWR = (ui: React.ReactElement) => render(<SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>);
 
 const AHORA = new Date(2026, 9, 15, 10, 0); // 15 oct 2026: octubre publicado, noviembre en borrador
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ['Date'], now: AHORA });
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 const sangama = TRABAJADORES_DEMO[1]; // HSC-0002, ingresó en 2018: tope de 5 guardias
 
 describe('Calendario del jefe de UPSS', () => {
   beforeEach(() => {
     reiniciarDemo();
-    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED' } });
+    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', integracionUrl: '/rrhh-integracion', demoEnRedHospital: true, ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED', microRed: 'MR' } });
     vi.mocked(useSession).mockReturnValue({ authenticated: true, sessionId: 'x', user: { username: 'jefe' } } as never);
     vi.mocked(userHasAccess).mockReturnValue(true);
   });
@@ -59,7 +65,7 @@ describe('Calendario del jefe de UPSS', () => {
 describe('Flujo del cronograma (RF18, RF19, RF20)', () => {
   beforeEach(() => {
     reiniciarDemo();
-    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED' } });
+    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', integracionUrl: '/rrhh-integracion', demoEnRedHospital: true, ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED', microRed: 'MR' } });
     vi.mocked(useSession).mockReturnValue({ authenticated: true, sessionId: 'x', user: { username: 'jefe' } } as never);
   });
   const siguienteMes = async () => {
@@ -97,7 +103,7 @@ describe('Flujo del cronograma (RF18, RF19, RF20)', () => {
 describe('Modal del turno: validaciones', () => {
   beforeEach(() => {
     reiniciarDemo();
-    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED' } });
+    vi.mocked(useConfig<RrhhTurnosConfig>).mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', integracionUrl: '/rrhh-integracion', demoEnRedHospital: true, ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED', microRed: 'MR' } });
   });
 
   // Cinco guardias en noviembre (el tope de quien ingresó en 2018) y una mañana en Consulta externa el día 20
@@ -108,7 +114,7 @@ describe('Modal del turno: validaciones', () => {
     },
   };
   const abrir = (estado: 'Borrador' | 'Publicado' = 'Borrador') =>
-    conSWR(<ModalTurno mes="2026-11" upss="HOSP" trabajador={sangama} dia={20} rol={rol} estado={estado} onClose={vi.fn()} />);
+    conSWR(<ModalTurno mes="2026-11" upss="HOSP" trabajador={sangama} dia={20} rol={rol} estado={estado} ahora={AHORA} onClose={vi.fn()} />);
 
   it('RF29: impide superar el tope de guardias', () => {
     abrir();

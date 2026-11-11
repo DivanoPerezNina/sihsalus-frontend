@@ -6,7 +6,9 @@ export interface RrhhTurnosConfig {
   fuenteDatos: TipoFuente;
   frappeUrl: string;
   demoTrabajadorId: string;
-  ipress: { codigo: string; nombre: string; red: string };
+  integracionUrl: string;
+  demoEnRedHospital: boolean;
+  ipress: { codigo: string; nombre: string; red: string; microRed: string };
 }
 
 export const configSchema = {
@@ -27,12 +29,23 @@ export const configSchema = {
     _default: 'HSC-0004',
     _description: 'Worker shown in "My shifts" with the demo data source when the user is not linked to a worker.',
   },
+  integracionUrl: {
+    _type: Type.String,
+    _default: '/rrhh-integracion',
+    _description: 'Base URL of the integration layer (Camel). It tells whether the request comes from the hospital network.',
+  },
+  demoEnRedHospital: {
+    _type: Type.Boolean,
+    _default: true,
+    _description: 'Demo data source only: simulate being inside (true) or outside (false) the hospital network.',
+  },
   ipress: {
     _type: Type.Object,
     _description: 'Health facility (IPRESS) data printed in the TuASUSALUD template and reports.',
-    _default: { codigo: '00000066', nombre: 'HOSPITAL II-1 SANTA CLOTILDE', red: 'MAYNAS PERIFERIE' },
+    _default: { codigo: '00000066', nombre: 'HOSPITAL II-1 SANTA CLOTILDE', red: 'MAYNAS PERIFERIE', microRed: 'SANTA CLOTILDE' },
     codigo: { _type: Type.String, _description: 'RENIPRESS code' },
     nombre: { _type: Type.String, _description: 'Facility name' },
     red: { _type: Type.String, _description: 'Health network' },
+    microRed: { _type: Type.String, _description: 'Micro network (DIRESA report)' },
   },
 };

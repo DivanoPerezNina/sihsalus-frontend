@@ -4,10 +4,9 @@ import { useTranslation } from 'react-i18next';
 
 import { moduleName } from '../constants';
 import { accionesDisponibles, siguienteEstado, type Accion, type EstadoCronograma } from '../domain/flujo';
-import { PARAMS_DEFECTO } from '../domain/parametros';
 import type { MesId } from '../domain/reglas';
 import { usePrivilegios } from '../privilegios';
-import { useCambiarEstado } from '../rrhh.resource';
+import { useCambiarEstado, useParametros } from '../rrhh.resource';
 import styles from './calendario.scss';
 
 const TEXTO: Record<Accion, [string, string]> = {
@@ -15,18 +14,29 @@ const TEXTO: Record<Accion, [string, string]> = {
   aprobar: ['accionAprobar', 'Approve'],
   observar: ['accionObservar', 'Return with observations'],
   publicar: ['accionPublicar', 'Publish'],
+  cerrar: ['accionCerrar', 'Close month'],
 };
 
 // RF18, RF19: botones del flujo según el estado y el rol de quien mira
-export default function AccionesCronograma({ mes, upss, estado, alertas }: { mes: MesId; upss: string; estado: EstadoCronograma; alertas: number }) {
+interface Props {
+  mes: MesId;
+  upss: string;
+  estado: EstadoCronograma;
+  alertas: number;
+  puedeProgramar?: boolean; // RNF09: dentro de la red del hospital o con acceso excepcional
+  soloCierre?: boolean; // consolidado de la UGRH: solo la acción de cerrar el mes (RF28)
+}
+
+export default function AccionesCronograma({ mes, upss, estado, alertas, puedeProgramar = true, soloCierre = false }: Props) {
   const { t } = useTranslation(moduleName);
   const p = usePrivilegios();
   const cambiarEstado = useCambiarEstado();
+  const params = useParametros();
   const [observando, setObservando] = useState(false);
   const [observacion, setObservacion] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState(false);
-  const acciones = accionesDisponibles(estado, { editar: p.programacionEditar, aprobar: p.programacionAprobar }, PARAMS_DEFECTO.requiereAprobacion);
+  const acciones = accionesDisponibles(estado, { editar: p.programacionEditar && puedeProgramar, aprobar: p.programacionAprobar, cerrar: p.cierre }, params.requiereAprobacion).filter((a) => (a === 'cerrar') === soloCierre);
 
   async function ejecutar(accion: Accion, texto?: string) {
     setOcupado(true);

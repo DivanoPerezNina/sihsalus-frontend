@@ -23,7 +23,9 @@ import { moduleName } from '../constants';
 import { CODIGOS } from '../domain/catalogos';
 import { diasDelMes } from '../domain/reglas';
 import { horario } from '../formato';
-import { useBloquesDelMes, useRolDelMes, useTrabajadores } from '../rrhh.resource';
+import { useBloquesDelMes, useEjecutado, useEstadosCronograma, useRolDelMes, useTrabajadores } from '../rrhh.resource';
+import { conEjecutado } from '../consolidado/consolidado.component';
+import { hojaDiresa } from './diresa';
 import styles from '../root.scss';
 import SelectorMes from '../selector-mes.component';
 import { descargarExcel } from './excel';
@@ -42,6 +44,9 @@ export default function Reportes({ ahora: ahoraProp }: { ahora?: Date }) {
   const trabajadores = useTrabajadores();
   const rol = useRolDelMes(mes);
   const bloques = useBloquesDelMes(mes);
+  const ejecutado = useEjecutado(mes);
+  const todasUpss = Object.keys(rol.data?.[mes] ?? {}).filter(Boolean).sort();
+  const estados = useEstadosCronograma(mes, todasUpss);
 
   const filas = useMemo(
     () => (rol.data && trabajadores.data && bloques.data ? filasSusalud(mes, rol.data, trabajadores.data, bloques.data, upss || undefined) : []),
@@ -57,7 +62,10 @@ export default function Reportes({ ahora: ahoraProp }: { ahora?: Date }) {
   if (trabajadores.isLoading || rol.isLoading || bloques.isLoading) return <DataTableSkeleton columnCount={4} rowCount={4} showHeader={false} />;
 
   const nombre = new Map((trabajadores.data ?? []).map((w) => [w.id, w.nombre]));
-  const listaUpss = Object.keys(rol.data?.[mes] ?? {}).sort();
+  const listaUpss = todasUpss;
+  // RF27: solo se exporta lo publicado (o ya cerrado)
+  const sinPublicar = (upss ? [upss] : listaUpss).filter((u) => estados.data && !['Publicado', 'Cerrado'].includes(estados.data[u]));
+  const microRed = ipress.microRed;
   const dias = diasDelMes(mes);
   const sufijo = upss ? ` ${upss}` : '';
 
@@ -126,7 +134,12 @@ export default function Reportes({ ahora: ahoraProp }: { ahora?: Date }) {
             </Table>
           </>
         )}
-        <Button className={styles.boton} size="md" renderIcon={Download} disabled={filas.length === 0}
+        {sinPublicar.length > 0 && (
+          <InlineNotification kind="error" lowContrast hideCloseButton data-testid="sin-publicar"
+            title={t('sinPublicar', 'Schedule not published: {{upss}}', { upss: sinPublicar.join(', ') })}
+            subtitle={t('sinPublicarTexto', 'TuASUSALUD is generated only from published schedules.')} />
+        )}
+        <Button className={styles.boton} size="md" renderIcon={Download} disabled={filas.length === 0 || sinPublicar.length > 0 || !estados.data}
           onClick={() => exportar(() => descargarTuasusalud(mes, filas, ipress))}>
           {t('descargarTuasusalud', 'Download TuASUSALUD')}
         </Button>
@@ -156,6 +169,24 @@ export default function Reportes({ ahora: ahoraProp }: { ahora?: Date }) {
             )
           }>
           {t('descargarExcel', 'Download Excel')}
+        </Button>
+      </Tile>
+
+      <Tile>
+        <h3 className={styles.subtitulo}>{t('reporteDiresa', 'DIRESA Loreto monthly roster')}</h3>
+        <p className={styles.nota}>{t('reporteDiresaTexto', 'Two sheets: Registro (scheduled) and Ejecutado (as registered at month close).')}</p>
+        <Button className={styles.boton} size="md" kind="tertiary" renderIcon={Download} disabled={!rol.data || !ejecutado.data}
+          onClick={() =>
+            exportar(async () => {
+              if (!rol.data || !ejecutado.data) return;
+              const w = (trabajadores.data ?? []).filter((x) => !upss || x.upss === upss);
+              await descargarExcel(`Rol DIRESA ${mes}${sufijo}.xlsx`, ipress.nombre, [
+                hojaDiresa('Registro', mes, rol.data, w, microRed, upss || undefined),
+                hojaDiresa('Ejecutado', mes, conEjecutado(rol.data, ejecutado.data, mes), w, microRed, upss || undefined),
+              ]);
+            })
+          }>
+          {t('descargarDiresa', 'Download DIRESA roster')}
         </Button>
       </Tile>
     </div>

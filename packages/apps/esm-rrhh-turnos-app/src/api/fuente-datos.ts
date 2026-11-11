@@ -6,6 +6,7 @@
 import type { Marcacion } from '../domain/asistencia';
 import type { Codigo } from '../domain/catalogos';
 import type { EstadoCronograma } from '../domain/flujo';
+import type { Parametros } from '../domain/parametros';
 import type { Bloque, ConfirmacionTurno, MesId, Programacion, UpssId, WorkerId } from '../domain/reglas';
 
 export type { EstadoCronograma };
@@ -19,6 +20,8 @@ export interface TrabajadorRrhh {
   usuario?: string; // usuario de SIH SALUS (Employee.user_id en Frappe HR)
   pinReloj?: string; // PIN del reloj ZKTeco (Employee.attendance_device_id)
   susalud?: DatosSusalud; // RF27, RF31: datos que pide la plantilla TuASUSALUD
+  condicion?: string; // RF24: condición laboral (Nombrado, CAS, RECAS, SERUMS, Locador)
+  practitionerId?: string; // RF17: UUID del provider de OpenMRS (FHIR Practitioner)
 }
 
 export interface DatosSusalud {
@@ -55,6 +58,29 @@ export interface EventoSync {
 export const estadoGlobal = (eventos: readonly EventoSync[]): EventoSync['estado'] =>
   eventos.some((e) => e.estado === 'error') ? 'error' : eventos.some((e) => e.estado === 'pendiente') ? 'pendiente' : 'ok';
 
+// RNF03: entrada de la bitácora. El usuario y la fecha los fija el backend.
+export interface EntradaBitacora {
+  fecha: Date;
+  usuario: string;
+  accion: 'turno' | 'estado' | 'parametros' | 'ejecutado' | 'acceso_excepcional';
+  mes?: MesId;
+  upss?: UpssId;
+  workerId?: WorkerId;
+  dia?: number;
+  detalle?: string;
+  motivo?: string;
+}
+
+// RF28: corrección de lo ejecutado frente a lo programado, al cierre del mes
+export interface CambioEjecutado {
+  mes: MesId;
+  upss: UpssId;
+  workerId: WorkerId;
+  dia: number;
+  codigo: Codigo;
+  motivo?: string; // obligatorio si el mes ya está cerrado
+}
+
 export interface FuenteDatos {
   trabajadores(): Promise<TrabajadorRrhh[]>;
   rolDelMes(mes: MesId): Promise<Programacion>;
@@ -70,6 +96,18 @@ export interface FuenteDatos {
   confirmaciones(mes: MesId): Promise<ConfirmacionTurno[]>;
   responderTurno(respuesta: ConfirmacionTurno): Promise<void>;
   eventosSync(): Promise<EventoSync[]>;
+  // Reglas de negocio configurables; cada cambio exige motivo y queda en la bitácora
+  parametros(): Promise<Parametros>;
+  guardarParametros(p: Parametros, motivo: string): Promise<void>;
+  // RNF03
+  bitacora(filtro?: { workerId?: WorkerId }): Promise<EntradaBitacora[]>;
+  // RF28: correcciones de lo ejecutado (solo las celdas que difieren de lo programado)
+  ejecutado(mes: MesId): Promise<Programacion>;
+  guardarEjecutado(cambio: CambioEjecutado): Promise<void>;
+  // RNF09, RF05: la programación solo se hace desde la red del hospital, salvo acceso excepcional vigente
+  enRedHospital(): Promise<boolean>;
+  accesoExcepcionalHasta(): Promise<Date | undefined>;
+  solicitarAcceso(motivo: string, minutos: number): Promise<Date>;
 }
 
 // Estado de un cronograma que todavía no tiene registro: los meses pasados y el actual se consideran publicados

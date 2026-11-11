@@ -20,10 +20,16 @@ const conSWR = (ui: React.ReactElement) => render(<SWRConfig value={{ provider: 
 
 // Jueves 15 de octubre de 2026, 10:00
 const AHORA = new Date(2026, 9, 15, 10, 0);
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ['Date'], now: AHORA });
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 describe('Gestión de turnos con la fuente demo', () => {
   beforeEach(() => {
-    mockUseConfig.mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED' } });
+    mockUseConfig.mockReturnValue({ fuenteDatos: 'demo', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', integracionUrl: '/rrhh-integracion', demoEnRedHospital: true, ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED', microRed: 'MR' } });
     mockUseSession.mockReturnValue({ authenticated: true, sessionId: 'x', user: { username: 'admin.local' } } as never);
     vi.mocked(userHasAccess).mockReturnValue(true);
   });
@@ -73,7 +79,7 @@ describe('Gestión de turnos con la fuente demo', () => {
   });
 
   it('Mis turnos: con Frappe HR no inventa un trabajador si el usuario no está vinculado', async () => {
-    mockUseConfig.mockReturnValue({ fuenteDatos: 'frappe', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED' } });
+    mockUseConfig.mockReturnValue({ fuenteDatos: 'frappe', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', integracionUrl: '/rrhh-integracion', demoEnRedHospital: true, ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED', microRed: 'MR' } });
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: [] }) } as Response);
     conSWR(<MisTurnos ahora={AHORA} />);
     expect(await screen.findByText('Your user is not linked to a worker')).toBeInTheDocument();
@@ -89,7 +95,7 @@ describe('Gestión de turnos con la fuente demo', () => {
   });
 
   it('muestra un mensaje sin detalles técnicos si Frappe HR falla', async () => {
-    mockUseConfig.mockReturnValue({ fuenteDatos: 'frappe', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED' } });
+    mockUseConfig.mockReturnValue({ fuenteDatos: 'frappe', frappeUrl: '/rrhh', demoTrabajadorId: 'HSC-0004', integracionUrl: '/rrhh-integracion', demoEnRedHospital: true, ipress: { codigo: '00000066', nombre: 'HSC', red: 'RED', microRed: 'MR' } });
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: false, status: 500, json: async () => ({}) } as Response);
     conSWR(<Asistencia ahora={AHORA} />);
     expect(await screen.findByText('Attendance could not be loaded')).toBeInTheDocument();

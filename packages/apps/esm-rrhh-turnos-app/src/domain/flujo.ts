@@ -1,15 +1,16 @@
 /*
  * RF18, RF19: ciclo de vida del cronograma de una UPSS en un mes.
- * Borrador → Enviado a aprobación → Aprobado → Publicado → Cerrado. El director puede devolverlo a Borrador con una
+ * Borrador → Enviado a aprobación → Aprobado → Publicado → Cerrado (lo cierra la UGRH al registrar lo ejecutado). El director puede devolverlo a Borrador con una
  * observación. Si el parámetro requiereAprobacion está apagado, el jefe publica directamente desde Borrador.
  */
 export type EstadoCronograma = 'Borrador' | 'Enviado a aprobación' | 'Aprobado' | 'Publicado' | 'Cerrado';
 
-export type Accion = 'enviar' | 'aprobar' | 'observar' | 'publicar';
+export type Accion = 'enviar' | 'aprobar' | 'observar' | 'publicar' | 'cerrar';
 
 export interface Permisos {
   editar: boolean; // jefe de la UPSS
   aprobar: boolean; // director
+  cerrar?: boolean; // UGRH, al cierre del mes (RF28)
 }
 
 const TRANSICIONES: Record<Accion, { desde: EstadoCronograma; hacia: EstadoCronograma; quien: keyof Permisos }[]> = {
@@ -20,6 +21,7 @@ const TRANSICIONES: Record<Accion, { desde: EstadoCronograma; hacia: EstadoCrono
     { desde: 'Aprobado', hacia: 'Publicado', quien: 'editar' },
     { desde: 'Borrador', hacia: 'Publicado', quien: 'editar' }, // solo sin aprobación (ver accionesDisponibles)
   ],
+  cerrar: [{ desde: 'Publicado', hacia: 'Cerrado', quien: 'cerrar' }],
 };
 
 export function accionesDisponibles(estado: EstadoCronograma, permisos: Permisos, requiereAprobacion: boolean): Accion[] {

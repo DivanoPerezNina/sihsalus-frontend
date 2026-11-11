@@ -116,3 +116,13 @@
   align-items: center;
   gap: 0.25rem;
 }
+
+.parametros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1rem;
+}
+
+.switcher {
+  max-width: 20rem;
+}

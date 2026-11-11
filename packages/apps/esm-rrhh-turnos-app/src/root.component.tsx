@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next';
 import Asistencia from './asistencia/asistencia.component';
 import Calendario from './calendario/calendario.component';
 import type { RrhhTurnosConfig } from './config-schema';
+import Configuracion from './configuracion/configuracion.component';
+import Consolidado from './consolidado/consolidado.component';
 import { appName, moduleName } from './constants';
 import MisTurnos from './mis-turnos/mis-turnos.component';
 import Reportes from './reportes/reportes.component';
@@ -23,8 +25,10 @@ export default function Root() {
     p.misTurnos && { id: 'mis-turnos', texto: t('misTurnos', 'My shifts'), contenido: <MisTurnos /> },
     p.programacion && { id: 'calendario', texto: t('calendario', 'Schedule'), contenido: <Calendario /> },
     p.asistencia && { id: 'asistencia', texto: t('asistencia', 'Attendance'), contenido: <Asistencia /> },
+    p.consolidado && { id: 'consolidado', texto: t('consolidado', 'All units'), contenido: <Consolidado /> },
     p.reportes && { id: 'reportes', texto: t('reportes', 'Reports'), contenido: <Reportes /> },
     p.sincronizacion && { id: 'sincronizacion', texto: t('sincronizacion', 'Synchronization'), contenido: <Sincronizacion /> },
+    p.configuracion && { id: 'configuracion', texto: t('configuracion', 'Settings'), contenido: <Configuracion /> },
   ].filter((x): x is { id: string; texto: string; contenido: JSX.Element } => Boolean(x));
 
   return (

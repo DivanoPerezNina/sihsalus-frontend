@@ -1,21 +1,28 @@
-import { DataTableSkeleton, InlineNotification, Select, SelectItem, Tag } from '@carbon/react';
+import { ActionableNotification, DataTableSkeleton, InlineNotification, Modal, Select, SelectItem, Tag, TextArea } from '@carbon/react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { mesDe, type TrabajadorRrhh } from '../api/fuente-datos';
+import { mesDe, mesVecino, type TrabajadorRrhh } from '../api/fuente-datos';
 import { moduleName } from '../constants';
-import { CODIGOS, type Codigo } from '../domain/catalogos';
-import { PARAMS_DEFECTO, maxGuardiasPorIngreso } from '../domain/parametros';
-import { diasDelMes, guardiasMes, horasMes, yaInicio } from '../domain/reglas';
-import { usePrivilegios } from '../privilegios';
 import { esEditable } from '../domain/flujo';
-import { useConfirmaciones, useEstadoCronograma, useRolDelMes, useTrabajadorActual, useTrabajadores } from '../rrhh.resource';
-import AccionesCronograma from './acciones-cronograma.component';
+import { maxGuardiasPorIngreso } from '../domain/parametros';
+import { diasDelMes, guardiasMes, horasMes, mesesProgramables, yaInicio } from '../domain/reglas';
+import { hora } from '../formato';
+import { usePrivilegios } from '../privilegios';
+import {
+  useAccesoProgramacion,
+  useConfirmaciones,
+  useEstadoCronograma,
+  useParametros,
+  useRolDelMes,
+  useTrabajadorActual,
+  useTrabajadores,
+} from '../rrhh.resource';
 import SelectorMes from '../selector-mes.component';
+import AccionesCronograma from './acciones-cronograma.component';
 import styles from './calendario.scss';
+import Matriz from './matriz.component';
 import ModalTurno from './modal-turno.component';
-
-const INICIAL_DIA = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 
 // RF22, RF25, RF29: matriz mensual persona × día de una UPSS. RF01, RF02, RF21: al pulsar una celda se abre el turno.
 export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
@@ -24,13 +31,18 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
   const [mes, setMes] = useState(mesDe(ahora));
   const [upssElegida, setUpss] = useState('');
   const [abierto, setAbierto] = useState<{ trabajador: TrabajadorRrhh; dia: number }>();
+  const [pidiendoAcceso, setPidiendoAcceso] = useState(false);
+  const [motivoAcceso, setMotivoAcceso] = useState('');
+  const [errorAcceso, setErrorAcceso] = useState(false);
   const { programacionEditar } = usePrivilegios();
+  const params = useParametros();
+  const acceso = useAccesoProgramacion();
   const trabajadores = useTrabajadores();
   const rol = useRolDelMes(mes);
   const { trabajador: actual } = useTrabajadorActual();
   const confirmaciones = useConfirmaciones(mes);
 
-  const listaUpss = useMemo(() => [...new Set((trabajadores.data ?? []).map((w) => w.upss))].sort(), [trabajadores.data]);
+  const listaUpss = useMemo(() => [...new Set((trabajadores.data ?? []).map((w) => w.upss).filter(Boolean))].sort(), [trabajadores.data]);
   // Por defecto, la UPSS del jefe que inició sesión
   const upss = upssElegida || actual?.upss || listaUpss[0] || '';
   const estado = useEstadoCronograma(mes, upss);
@@ -49,21 +61,49 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
         subtitle={t('errorCargaTexto', 'Try again in a few minutes. If it persists, contact the HR unit.')} />
     );
 
-  const dias = diasDelMes(mes);
-  const editable = programacionEditar && estado.data !== undefined && esEditable(estado.data);
+  // RF01: solo se programa el mes en curso y los siguientes que permita el parámetro
+  const programable = mesesProgramables([mes], ahora, params.mesesAdelante).length > 0;
+  const fueraDeRed = programacionEditar && !acceso.cargando && !acceso.permitido;
+  const editable = programacionEditar && acceso.permitido && programable && estado.data !== undefined && esEditable(estado.data);
   // RF20: turnos a los que el trabajador respondió que no asistirá
   const noAsiste = new Map(
     (confirmaciones.data ?? []).filter((c) => c.upss === upss && c.estado === 'no_asiste').map((c) => [`${c.workerId}|${c.dia}`, c.motivo ?? '']),
   );
+  const resumen = (w: TrabajadorRrhh) => ({
+    horas: rol.data ? horasMes(rol.data, mes, w.id) : 0,
+    guardias: rol.data ? guardiasMes(rol.data, mes, w.id) : 0,
+    tope: maxGuardiasPorIngreso(w.anioIngreso, params),
+  });
   // Personal propio bajo las horas mínimas o sobre el tope de guardias (se avisa antes de enviar o publicar)
-  const alertas = rol.data
-    ? filas.filter(
-        (w) => w.upss === upss && (horasMes(rol.data, mes, w.id) < PARAMS_DEFECTO.horasMinimasMes || guardiasMes(rol.data, mes, w.id) > maxGuardiasPorIngreso(w.anioIngreso)),
-      ).length
-    : 0;
+  const alertas = filas.filter((w) => {
+    const r = resumen(w);
+    return w.upss === upss && (r.horas < params.horasMinimasMes || r.guardias > r.tope);
+  }).length;
+
+  async function pedirAcceso() {
+    setErrorAcceso(false);
+    try {
+      await acceso.solicitar(motivoAcceso.trim(), params.accesoExcepcionalMin);
+      setPidiendoAcceso(false);
+      setMotivoAcceso('');
+    } catch {
+      setErrorAcceso(true);
+    }
+  }
 
   return (
     <div className={styles.calendario}>
+      {fueraDeRed && (
+        <ActionableNotification inline kind="warning" lowContrast hideCloseButton data-testid="fuera-de-red"
+          title={t('fueraDeRed', 'Scheduling is only available inside the hospital network')}
+          subtitle={t('fueraDeRedTexto', 'You can view the schedule. To change it from outside, request exceptional access and state the reason.')}
+          actionButtonLabel={t('solicitarAcceso', 'Request exceptional access')} onActionButtonClick={() => setPidiendoAcceso(true)} />
+      )}
+      {acceso.hasta && !acceso.enRed && (
+        <InlineNotification kind="info" lowContrast hideCloseButton data-testid="acceso-vigente"
+          title={t('accesoVigente', 'Exceptional access active until {{hora}}', { hora: hora(acceso.hasta) })} />
+      )}
+
       <div className={styles.barra}>
         <SelectorMes mes={mes} onChange={setMes} />
         <Select id="calendario-upss" size="sm" inline labelText={t('upss', 'Service unit (UPSS)')} value={upss} onChange={(e) => setUpss(e.target.value)}>
@@ -74,84 +114,58 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
             {t(`estado_${estado.data}`, estado.data)}
           </Tag>
         )}
-        {estado.data && <AccionesCronograma mes={mes} upss={upss} estado={estado.data} alertas={alertas} />}
+        {estado.data && <AccionesCronograma mes={mes} upss={upss} estado={estado.data} alertas={alertas} puedeProgramar={acceso.permitido} />}
       </div>
 
       {trabajadores.isLoading || rol.isLoading ? (
         <DataTableSkeleton columnCount={8} rowCount={6} showHeader={false} />
       ) : (
-        <div className={styles.contenedor} role="region" aria-label={t('calendario', 'Schedule')}>
-          <table className={styles.matriz}>
-            <thead>
-              <tr>
-                <th scope="col" className={styles.nombre}>{t('trabajador', 'Worker')}</th>
-                {dias.map((d) => (
-                  <th key={d.d} scope="col" className={d.domingo || d.feriado ? styles.festivo : undefined}>
-                    <span className={styles.inicialDia}>{INICIAL_DIA[d.dow]}</span>
-                    {d.d}
-                  </th>
-                ))}
-                <th scope="col">{t('horas', 'Hours')}</th>
-                <th scope="col">{t('guardias', 'Guards')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((w) => {
-                const r = rol.data?.[mes]?.[upss]?.[w.id] ?? {};
-                const horas = rol.data ? horasMes(rol.data, mes, w.id) : 0;
-                const guardias = rol.data ? guardiasMes(rol.data, mes, w.id) : 0;
-                const tope = maxGuardiasPorIngreso(w.anioIngreso);
-                return (
-                  <tr key={w.id}>
-                    <th scope="row" className={styles.nombre}>
-                      {w.nombre}
-                      {w.upss !== upss && <span className={styles.apoyo}> · {t('apoyoDe', 'support from {{upss}}', { upss: w.upss })}</span>}
-                    </th>
-                    {dias.map((d) => {
-                      const c: Codigo | undefined = r[d.d];
-                      const sePuede = editable && !yaInicio(mes, d.d, c ?? 'L', ahora);
-                      const texto = c ?? '·';
-                      const motivoNoAsiste = noAsiste.get(`${w.id}|${d.d}`);
-                      const etiqueta =
-                        `${w.nombre}, ${d.d}: ${c ? CODIGOS[c].nombre : t('sinAsignar', 'unassigned')}` +
-                        (motivoNoAsiste !== undefined ? ` · ${t('noAsistira', 'will not attend')}${motivoNoAsiste ? `: ${motivoNoAsiste}` : ''}` : '');
-                      const clases = [c && styles[`grupo_${CODIGOS[c].grupo}`], motivoNoAsiste !== undefined && styles.noAsiste].filter(Boolean).join(' ');
-                      return (
-                        <td key={d.d} className={clases || undefined}>
-                          {sePuede ? (
-                            <button type="button" className={styles.celda} aria-label={etiqueta} onClick={() => setAbierto({ trabajador: w, dia: d.d })}>
-                              {texto}
-                            </button>
-                          ) : (
-                            <span className={styles.celda} title={etiqueta}>{texto}</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                    <td className={horas < PARAMS_DEFECTO.horasMinimasMes ? styles.alerta : undefined} data-testid={`horas-${w.id}`}>
-                      {horas}
-                    </td>
-                    <td className={guardias > tope ? styles.alerta : undefined}>
-                      {guardias}/{tope}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Matriz
+          etiqueta={t('calendario', 'Schedule')}
+          upss={upss}
+          dias={diasDelMes(mes)}
+          filas={filas}
+          rolDe={(w) => rol.data?.[mes]?.[upss]?.[w.id] ?? {}}
+          resumen={resumen}
+          minimoHoras={params.horasMinimasMes}
+          editable={(_w, d, c) => editable && !yaInicio(mes, d, c ?? 'L', ahora)}
+          onCelda={(w, d) => setAbierto({ trabajador: w, dia: d })}
+          marca={(w, d) => {
+            const motivo = noAsiste.get(`${w.id}|${d}`);
+            return motivo === undefined ? undefined : `${t('noAsistira', 'will not attend')}${motivo ? `: ${motivo}` : ''}`;
+          }}
+        />
       )}
 
       <p className={styles.leyenda}>
         {t('leyendaCalendario', 'Hours below {{minimo}} and guard shifts above the limit are highlighted. Shifts that already started cannot be edited.', {
-          minimo: PARAMS_DEFECTO.horasMinimasMes,
+          minimo: params.horasMinimasMes,
         })}
         {!programacionEditar && ` ${t('soloLectura', 'You can view this schedule but not edit it.')}`}
+        {programacionEditar && !programable && mes > mesDe(ahora) &&
+          ` ${t('fueraDeHorizonte', 'This month cannot be scheduled yet: the limit is {{n}} months ahead ({{hasta}}).', {
+            n: params.mesesAdelante,
+            hasta: mesVecino(mesDe(ahora), params.mesesAdelante),
+          })}`}
       </p>
 
       {abierto && rol.data && estado.data && (
         <ModalTurno mes={mes} upss={upss} trabajador={abierto.trabajador} dia={abierto.dia} rol={rol.data}
-          estado={estado.data} onClose={() => setAbierto(undefined)} />
+          estado={estado.data} ahora={ahora} onClose={() => setAbierto(undefined)} />
+      )}
+
+      {pidiendoAcceso && (
+        // RF05: el motivo es obligatorio y queda en la bitácora
+        <Modal open modalHeading={t('solicitarAcceso', 'Request exceptional access')}
+          primaryButtonText={t('solicitarAcceso', 'Request exceptional access')} secondaryButtonText={t('cerrar', 'Close')}
+          primaryButtonDisabled={!motivoAcceso.trim()} onRequestClose={() => setPidiendoAcceso(false)} onRequestSubmit={pedirAcceso}>
+          <p className={styles.leyenda}>
+            {t('accesoTexto', 'Access lasts {{min}} minutes, applies only to shift scheduling and is recorded with your user.', { min: params.accesoExcepcionalMin })}
+          </p>
+          <TextArea id="motivo-acceso" labelText={t('motivoAcceso', 'Why do you need to schedule from outside the hospital?')} maxCount={300} enableCounter
+            value={motivoAcceso} onChange={(e) => setMotivoAcceso(e.target.value)} />
+          {errorAcceso && <InlineNotification kind="error" lowContrast hideCloseButton title={t('errorAcceso', 'The access could not be registered')} />}
+        </Modal>
       )}
     </div>
   );
