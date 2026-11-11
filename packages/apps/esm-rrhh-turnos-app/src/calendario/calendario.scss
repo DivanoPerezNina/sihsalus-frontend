@@ -41,15 +41,21 @@
   }
 }
 
-.nombre {
+.matriz .nombre {
   position: sticky;
   left: 0;
   z-index: 1;
-  min-width: 14rem;
-  padding: 0.25rem 0.5rem !important;
-  text-align: left !important;
+  min-width: 13rem;
+  padding: 0.25rem 0.5rem;
+  text-align: left;
   font-weight: 400;
+  white-space: nowrap;
   background: var(--cds-layer);
+}
+
+.matriz thead .nombre {
+  font-weight: 600;
+  background: var(--cds-layer-accent);
 }
 
 .apoyo {
@@ -91,21 +97,22 @@ button.celda {
 }
 
 .grupo_turno {
-  background: var(--cds-tag-background-blue);
-  color: var(--cds-tag-color-blue);
+  background: #d0e2ff;
+  color: #002d9c;
 }
 
 .grupo_guardia {
-  background: var(--cds-tag-background-purple);
-  color: var(--cds-tag-color-purple);
+  background: #e8daff;
+  color: #491d8b;
 }
 
 .grupo_licencia {
-  background: var(--cds-tag-background-green);
-  color: var(--cds-tag-color-green);
+  background: #a7f0ba;
+  color: #044317;
 }
 
 .grupo_descanso {
+  background: var(--cds-layer-accent);
   color: var(--cds-text-secondary);
 }
 

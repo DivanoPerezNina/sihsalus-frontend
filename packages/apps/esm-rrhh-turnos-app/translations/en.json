@@ -134,6 +134,7 @@
   "paramMesesAdelante": "Months that can be scheduled ahead (RF01)",
   "paramRecordatorio": "Next-shift reminder, hours before (RF15)",
   "parametrosGuardados": "Parameters saved",
+  "porAprobar": "Schedules waiting for your approval: {{upss}}",
   "problema": "Problem",
   "programado": "Scheduled",
   "programadoEra": "Scheduled: {{codigo}}. The schedule is kept; only what was executed changes.",

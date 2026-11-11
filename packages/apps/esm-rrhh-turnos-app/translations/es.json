@@ -134,6 +134,7 @@
   "paramMesesAdelante": "Meses que se pueden programar por adelantado (RF01)",
   "paramRecordatorio": "Recordatorio del próximo turno, horas antes (RF15)",
   "parametrosGuardados": "Parámetros guardados",
+  "porAprobar": "Cronogramas por aprobar: {{upss}}",
   "problema": "Problema",
   "programado": "Programado",
   "programadoEra": "Programado: {{codigo}}. Lo programado se conserva; solo cambia lo ejecutado.",

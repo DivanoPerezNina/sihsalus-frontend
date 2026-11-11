@@ -69,7 +69,7 @@ function SeccionUpss({ mes, upss, vista, trabajadores, programado, correcciones,
   }
 
   return (
-    <section className={styles.seccion} data-testid={`consolidado-${upss}`}>
+    <section className={styles.ancha} data-testid={`consolidado-${upss}`}>
       <div className={estilosCalendario.barra}>
         <h3 className={styles.subtitulo}>{upss}</h3>
         {estado.data && <Tag type={estado.data === 'Publicado' ? 'green' : 'gray'}>{t(`estado_${estado.data}`, estado.data)}</Tag>}
@@ -136,7 +136,7 @@ export default function Consolidado({ ahora: ahoraProp }: { ahora?: Date }) {
 
   const listaUpss = Object.keys(rol.data?.[mes] ?? {}).filter(Boolean).sort();
   return (
-    <div className={styles.seccion} style={{ maxWidth: 'none' }}>
+    <div className={styles.ancha}>
       <div className={estilosCalendario.barra}>
         <SelectorMes mes={mes} onChange={setMes} />
         <ContentSwitcher size="sm" className={styles.switcher} selectedIndex={vista === 'programado' ? 0 : 1}

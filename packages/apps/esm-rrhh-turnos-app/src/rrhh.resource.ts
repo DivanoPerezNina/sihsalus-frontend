@@ -117,7 +117,8 @@ export function useCambiarEstado() {
   const { mutate } = useSWRConfig();
   return async (mes: MesId, upss: string, estado: EstadoCronograma, observacion?: string) => {
     await fuente.cambiarEstado(mes, upss, estado, observacion);
-    await mutate(['rrhh', clave, 'estado', mes, upss]);
+    // el estado de esa UPSS y los resúmenes de estados del mes
+    await mutate((k) => Array.isArray(k) && k[0] === 'rrhh' && k[1] === clave && (k[2] === 'estado' || k[2] === 'estados') && k[3] === mes);
   };
 }
 

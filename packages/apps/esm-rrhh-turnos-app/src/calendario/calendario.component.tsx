@@ -13,6 +13,7 @@ import {
   useAccesoProgramacion,
   useConfirmaciones,
   useEstadoCronograma,
+  useEstadosCronograma,
   useParametros,
   useRolDelMes,
   useTrabajadorActual,
@@ -34,7 +35,7 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
   const [pidiendoAcceso, setPidiendoAcceso] = useState(false);
   const [motivoAcceso, setMotivoAcceso] = useState('');
   const [errorAcceso, setErrorAcceso] = useState(false);
-  const { programacionEditar } = usePrivilegios();
+  const { programacionEditar, programacionAprobar } = usePrivilegios();
   const params = useParametros();
   const acceso = useAccesoProgramacion();
   const trabajadores = useTrabajadores();
@@ -43,8 +44,10 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
   const confirmaciones = useConfirmaciones(mes);
 
   const listaUpss = useMemo(() => [...new Set((trabajadores.data ?? []).map((w) => w.upss).filter(Boolean))].sort(), [trabajadores.data]);
-  // Por defecto, la UPSS del jefe que inició sesión
-  const upss = upssElegida || actual?.upss || listaUpss[0] || '';
+  // RF18: quien aprueba ve primero lo que tiene pendiente; el jefe, su propia UPSS
+  const estados = useEstadosCronograma(mes, listaUpss);
+  const porAprobar = programacionAprobar ? listaUpss.filter((u) => estados.data?.[u] === 'Enviado a aprobación') : [];
+  const upss = upssElegida || porAprobar[0] || actual?.upss || listaUpss[0] || '';
   const estado = useEstadoCronograma(mes, upss);
 
   // Personal propio de la UPSS más quienes vienen de apoyo desde otra UPSS
@@ -104,8 +107,16 @@ export default function Calendario({ ahora: ahoraProp }: { ahora?: Date }) {
           title={t('accesoVigente', 'Exceptional access active until {{hora}}', { hora: hora(acceso.hasta) })} />
       )}
 
+      {porAprobar.length > 0 && (
+        <InlineNotification kind="info" lowContrast hideCloseButton data-testid="por-aprobar"
+          title={t('porAprobar', 'Schedules waiting for your approval: {{upss}}', { upss: porAprobar.join(', ') })} />
+      )}
+
       <div className={styles.barra}>
-        <SelectorMes mes={mes} onChange={setMes} />
+        <SelectorMes mes={mes} onChange={(m) => {
+          setMes(m);
+          setUpss(''); // al cambiar de mes se vuelve a proponer lo pendiente
+        }} />
         <Select id="calendario-upss" size="sm" inline labelText={t('upss', 'Service unit (UPSS)')} value={upss} onChange={(e) => setUpss(e.target.value)}>
           {listaUpss.map((u) => <SelectItem key={u} value={u} text={u} />)}
         </Select>
